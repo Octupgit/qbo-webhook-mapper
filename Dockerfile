@@ -1,35 +1,35 @@
-# Build stage for frontend
-FROM node:20-alpine AS frontend-build
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
+# Simple single-stage Dockerfile for Cloud Run
+FROM node:20-alpine
 
-# Build stage for backend
-FROM node:20-alpine AS backend-build
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci
-COPY backend/ ./
-RUN npm run build
-
-# Production stage
-FROM node:20-alpine AS production
 WORKDIR /app
 
-# Copy backend build and dependencies
-COPY --from=backend-build /app/backend/dist ./backend/dist
-COPY --from=backend-build /app/backend/package*.json ./backend/
-WORKDIR /app/backend
-RUN npm ci --only=production
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
 
-# Copy frontend build
-COPY --from=frontend-build /app/frontend/dist ../frontend/dist
+# Copy package files
+COPY package*.json ./
+COPY backend/package*.json ./backend/
+COPY frontend/package*.json ./frontend/
 
-# Set environment
+# Install all dependencies
+RUN npm install
+RUN cd backend && npm install
+RUN cd frontend && npm install
+
+# Copy source code
+COPY . .
+
+# Build frontend
+RUN cd frontend && npm run build
+
+# Build backend
+RUN cd backend && npm run build
+
+# Set production environment
 ENV NODE_ENV=production
 ENV PORT=8080
+
+WORKDIR /app/backend
 
 EXPOSE 8080
 
