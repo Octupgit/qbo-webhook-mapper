@@ -18,7 +18,7 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--memory=1Gi'
-      - '--set-env-vars=NODE_ENV=production,USE_MOCK_DATA=true,QBO_ENVIRONMENT=sandbox'
+      - '--update-env-vars=NODE_ENV=production,USE_MOCK_DATA=true,QBO_ENVIRONMENT=sandbox'
 
 images:
   - 'gcr.io/$PROJECT_ID/qbo-webhook-mapper'

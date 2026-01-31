@@ -23,8 +23,8 @@ export const config = {
   // Security
   encryptionKey: process.env.ENCRYPTION_KEY || 'default_32_char_encryption_key!!',
 
-  // CORS
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  // CORS - In production, frontend is served from the same origin
+  frontendUrl: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173'),
 };
 
 export default config;

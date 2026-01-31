@@ -7,9 +7,9 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 
-// Middleware
+// Middleware - In production, allow same-origin requests
 app.use(cors({
-  origin: config.frontendUrl,
+  origin: process.env.NODE_ENV === 'production' ? true : config.frontendUrl,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -33,13 +33,19 @@ app.use('/api', routes);
 // Serve React app for non-API routes in production
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '../../frontend/dist');
-  app.get('*', (req, res) => {
+
+  // Catch-all for SPA routing - serve index.html for any non-API, non-static routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes and static file requests with extensions
+    if (req.path.startsWith('/api') || req.path.includes('.')) {
+      return next();
+    }
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 }
 
-// Error handling
-app.use(notFoundHandler);
+// Error handling - only for API routes
+app.use('/api', notFoundHandler);
 app.use(errorHandler);
 
 // Start server

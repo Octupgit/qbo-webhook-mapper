@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Card,
   Title,
@@ -7,18 +7,21 @@ import {
   Button,
   Badge,
   Divider,
+  Callout,
 } from '@tremor/react';
 import {
   CheckCircleIcon,
   XCircleIcon,
   ArrowRightOnRectangleIcon,
   ArrowPathIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import * as oauthApi from '../api/oauth';
 import { OAuthStatus } from '../types';
 
 export default function SettingsPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus>({ connected: false });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -29,12 +32,20 @@ export default function SettingsPage() {
     // Check for OAuth callback result
     const oauthResult = searchParams.get('oauth');
     if (oauthResult === 'success') {
-      setMessage({ type: 'success', text: 'Successfully connected to QuickBooks!' });
+      setMessage({ type: 'success', text: 'Successfully connected to QuickBooks! Your account is now linked and ready to sync invoices.' });
+      // Clear URL params after 5 seconds
+      setTimeout(() => {
+        navigate('/settings', { replace: true });
+      }, 5000);
     } else if (oauthResult === 'error') {
       const errorMessage = searchParams.get('message') || 'Failed to connect';
       setMessage({ type: 'error', text: errorMessage });
+      // Clear URL params after 10 seconds
+      setTimeout(() => {
+        navigate('/settings', { replace: true });
+      }, 10000);
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   const loadStatus = async () => {
     try {
@@ -92,12 +103,30 @@ export default function SettingsPage() {
 
       {/* Status Message */}
       {message && (
-        <div
-          className={`mt-4 p-4 rounded-lg ${
-            message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-          }`}
-        >
-          {message.text}
+        <div className="relative">
+          <Callout
+            className="mt-4"
+            title={message.type === 'success' ? 'Connection Successful!' : 'Connection Error'}
+            icon={message.type === 'success' ? CheckCircleIcon : ExclamationTriangleIcon}
+            color={message.type === 'success' ? 'green' : 'red'}
+          >
+            {message.text}
+            {message.type === 'success' && (
+              <div className="mt-2 text-sm">
+                You can now sync webhook payloads to QuickBooks invoices.
+              </div>
+            )}
+          </Callout>
+          <button
+            onClick={() => {
+              setMessage(null);
+              navigate('/settings', { replace: true });
+            }}
+            className="absolute top-6 right-4 text-gray-400 hover:text-gray-600"
+            aria-label="Dismiss"
+          >
+            <XCircleIcon className="w-5 h-5" />
+          </button>
         </div>
       )}
 
@@ -154,8 +183,9 @@ export default function SettingsPage() {
                 </Button>
                 <Button
                   icon={ArrowRightOnRectangleIcon}
-                  color="red"
+                  variant="secondary"
                   onClick={handleDisconnect}
+                  className="text-red-600 border-red-300 hover:bg-red-50"
                 >
                   Disconnect
                 </Button>

@@ -22,18 +22,22 @@ router.get('/qbo/authorize', (req: Request, res: Response) => {
 // GET /api/oauth/qbo/callback - OAuth callback handler
 router.get('/qbo/callback', async (req: Request, res: Response) => {
   try {
-    const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    // Handle Cloud Run's forwarded protocol
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    const fullUrl = `${protocol}://${req.get('host')}${req.originalUrl}`;
+
+    console.log('OAuth callback URL:', fullUrl);
 
     const { realmId } = await qboAuthService.handleCallback(fullUrl);
 
-    // Redirect to frontend with success
-    const frontendUrl = config.frontendUrl;
-    return res.redirect(`${frontendUrl}/settings?oauth=success&realmId=${realmId}`);
+    // Redirect to frontend with success - use relative URL in production
+    const baseUrl = process.env.NODE_ENV === 'production' ? '' : config.frontendUrl;
+    return res.redirect(`${baseUrl}/settings?oauth=success&realmId=${realmId}`);
   } catch (error) {
     console.error('OAuth callback error:', error);
-    const frontendUrl = config.frontendUrl;
+    const baseUrl = process.env.NODE_ENV === 'production' ? '' : config.frontendUrl;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return res.redirect(`${frontendUrl}/settings?oauth=error&message=${encodeURIComponent(errorMessage)}`);
+    return res.redirect(`${baseUrl}/settings?oauth=error&message=${encodeURIComponent(errorMessage)}`);
   }
 });
 
