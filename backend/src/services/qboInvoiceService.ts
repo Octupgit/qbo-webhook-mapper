@@ -89,6 +89,56 @@ export async function createInvoice(invoice: QBOInvoice): Promise<{
   }
 }
 
+// Mock invoice data for demo
+const mockInvoices: Record<string, unknown> = {
+  '178': {
+    Id: '178',
+    DocNumber: 'INV-1001',
+    TxnDate: '2025-01-31',
+    DueDate: '2025-02-28',
+    TotalAmt: 140.37,
+    Balance: 140.37,
+    CustomerRef: { value: 'CUST-001', name: 'John Doe' },
+    BillEmail: { Address: 'john@example.com' },
+    Line: [
+      {
+        Id: '1',
+        LineNum: 1,
+        Description: 'Premium Widget',
+        Amount: 99.98,
+        DetailType: 'SalesItemLineDetail',
+        SalesItemLineDetail: {
+          ItemRef: { value: '1', name: 'Widget' },
+          Qty: 2,
+          UnitPrice: 49.99,
+        },
+      },
+      {
+        Id: '2',
+        LineNum: 2,
+        Description: 'Super Gadget',
+        Amount: 29.99,
+        DetailType: 'SalesItemLineDetail',
+        SalesItemLineDetail: {
+          ItemRef: { value: '2', name: 'Gadget' },
+          Qty: 1,
+          UnitPrice: 29.99,
+        },
+      },
+      {
+        Amount: 129.97,
+        DetailType: 'SubTotalLineDetail',
+      },
+    ],
+    CustomerMemo: { value: 'Order #ORD-12345' },
+    CurrencyRef: { value: 'USD', name: 'United States Dollar' },
+    MetaData: {
+      CreateTime: '2025-01-31T10:30:00-08:00',
+      LastUpdatedTime: '2025-01-31T10:30:00-08:00',
+    },
+  },
+};
+
 // Get an invoice by ID
 export async function getInvoice(invoiceId: string): Promise<{
   success: boolean;
@@ -97,6 +147,13 @@ export async function getInvoice(invoiceId: string): Promise<{
 }> {
   const tokenInfo = await getValidToken();
   if (!tokenInfo) {
+    // Return mock invoice if available (for demo purposes)
+    if (mockInvoices[invoiceId]) {
+      return {
+        success: true,
+        invoice: mockInvoices[invoiceId],
+      };
+    }
     return {
       success: false,
       error: 'Not connected to QuickBooks. Please authorize first.',

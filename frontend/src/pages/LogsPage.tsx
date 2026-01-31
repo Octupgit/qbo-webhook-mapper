@@ -16,7 +16,7 @@ import {
   DialogPanel,
   Button,
 } from '@tremor/react';
-import { EyeIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { EyeIcon, ArrowPathIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import JsonViewer from '../components/common/JsonViewer';
 import * as sourcesApi from '../api/sources';
 import * as invoicesApi from '../api/invoices';
@@ -31,6 +31,9 @@ export default function LogsPage() {
     (SyncLog & { request_payload?: Record<string, unknown>; response_payload?: Record<string, unknown> }) | null
   >(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Record<string, unknown> | null>(null);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
 
   useEffect(() => {
     loadSources();
@@ -70,6 +73,20 @@ export default function LogsPage() {
     } catch (err) {
       console.error('Failed to load log details:', err);
       alert('Failed to load log details');
+    }
+  };
+
+  const handleViewInvoice = async (invoiceId: string) => {
+    setLoadingInvoice(true);
+    try {
+      const invoice = await invoicesApi.getInvoice(invoiceId);
+      setSelectedInvoice(invoice);
+      setShowInvoiceModal(true);
+    } catch (err) {
+      console.error('Failed to load invoice:', err);
+      alert('Failed to load invoice details');
+    } finally {
+      setLoadingInvoice(false);
     }
   };
 
@@ -179,13 +196,25 @@ export default function LogsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <button
-                      onClick={() => handleViewDetails(log.log_id)}
-                      className="text-blue-500 hover:text-blue-700"
-                      title="View Details"
-                    >
-                      <EyeIcon className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleViewDetails(log.log_id)}
+                        className="text-blue-500 hover:text-blue-700"
+                        title="View Log Details"
+                      >
+                        <EyeIcon className="w-4 h-4" />
+                      </button>
+                      {log.qbo_invoice_id && (
+                        <button
+                          onClick={() => handleViewInvoice(log.qbo_invoice_id!)}
+                          className="text-green-500 hover:text-green-700"
+                          title="View Invoice"
+                          disabled={loadingInvoice}
+                        >
+                          <DocumentTextIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -266,6 +295,86 @@ export default function LogsPage() {
 
           <div className="mt-6 flex justify-end">
             <Button onClick={() => setShowDetailModal(false)}>Close</Button>
+          </div>
+        </DialogPanel>
+      </Dialog>
+
+      {/* Invoice Modal */}
+      <Dialog open={showInvoiceModal} onClose={() => setShowInvoiceModal(false)}>
+        <DialogPanel className="max-w-4xl">
+          <Title>QuickBooks Invoice</Title>
+
+          {selectedInvoice && (
+            <div className="mt-4 space-y-6">
+              {/* Invoice Header */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <Text className="text-sm text-gray-500">Invoice Number</Text>
+                  <Text className="mt-1 font-medium text-lg">
+                    {(selectedInvoice as { DocNumber?: string }).DocNumber || '-'}
+                  </Text>
+                </div>
+                <div>
+                  <Text className="text-sm text-gray-500">Invoice ID</Text>
+                  <Text className="mt-1 font-mono">
+                    {(selectedInvoice as { Id?: string }).Id || '-'}
+                  </Text>
+                </div>
+                <div>
+                  <Text className="text-sm text-gray-500">Total Amount</Text>
+                  <Text className="mt-1 font-medium text-lg text-green-600">
+                    ${(selectedInvoice as { TotalAmt?: number }).TotalAmt?.toFixed(2) || '0.00'}
+                  </Text>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              {(selectedInvoice as { CustomerRef?: { name?: string } }).CustomerRef && (
+                <div>
+                  <Text className="text-sm text-gray-500 mb-2">Customer</Text>
+                  <Text className="font-medium">
+                    {(selectedInvoice as { CustomerRef?: { name?: string } }).CustomerRef?.name || 'Unknown'}
+                  </Text>
+                </div>
+              )}
+
+              {/* Line Items */}
+              {(selectedInvoice as { Line?: Array<{ Description?: string; Amount?: number }> }).Line && (
+                <div>
+                  <Text className="text-sm text-gray-500 mb-2">Line Items</Text>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Description</th>
+                          <th className="px-4 py-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {((selectedInvoice as { Line?: Array<{ Description?: string; Amount?: number; DetailType?: string }> }).Line || [])
+                          .filter(line => line.DetailType !== 'SubTotalLineDetail')
+                          .map((line, idx) => (
+                            <tr key={idx} className="border-t">
+                              <td className="px-4 py-2">{line.Description || '-'}</td>
+                              <td className="px-4 py-2 text-right">${line.Amount?.toFixed(2) || '0.00'}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Full Invoice JSON */}
+              <div>
+                <Text className="text-sm text-gray-500 mb-2">Full Invoice Data</Text>
+                <JsonViewer data={selectedInvoice} expandLevel={2} />
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex justify-end">
+            <Button onClick={() => setShowInvoiceModal(false)}>Close</Button>
           </div>
         </DialogPanel>
       </Dialog>
