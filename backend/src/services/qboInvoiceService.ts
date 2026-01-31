@@ -1,10 +1,23 @@
-import { getValidToken } from './qboAuthService';
+/**
+ * QBO Invoice Service - Multi-Tenant
+ *
+ * Handles invoice creation and queries for QuickBooks Online.
+ * Supports multi-tenant operations with per-organization token retrieval.
+ */
+
+import { getValidToken as legacyGetValidToken } from './qboAuthService';
+import { getValidToken as multiTenantGetValidToken } from './multiTenantAuthService';
 import { QBOInvoice } from '../types';
 
 // QBO API response types
 interface QBOErrorResponse {
   Fault?: {
-    Error?: Array<{ Message?: string; Detail?: string }>;
+    Error?: Array<{
+      Message?: string;
+      Detail?: string;
+      code?: string;
+    }>;
+    type?: string;
   };
 }
 
@@ -31,19 +44,71 @@ function getBaseUrl(): string {
   return QBO_BASE_URL[env as keyof typeof QBO_BASE_URL] || QBO_BASE_URL.sandbox;
 }
 
-// Create an invoice in QuickBooks
-export async function createInvoice(invoice: QBOInvoice): Promise<{
+/**
+ * Get valid token - supports both legacy (single-tenant) and multi-tenant modes
+ */
+async function getTokenForOrg(organizationId?: string): Promise<{
+  accessToken: string;
+  realmId: string;
+} | null> {
+  // Multi-tenant mode
+  if (organizationId) {
+    const result = await multiTenantGetValidToken(organizationId);
+    if (!result.success) {
+      return null;
+    }
+    return {
+      accessToken: result.accessToken!,
+      realmId: result.realmId!,
+    };
+  }
+
+  // Legacy single-tenant mode (backward compatibility)
+  return legacyGetValidToken();
+}
+
+/**
+ * Format QBO error for logging and display
+ */
+function formatQBOError(data: QBOErrorResponse): {
+  message: string;
+  code?: string;
+  detail?: string;
+  fullError: unknown;
+} {
+  const error = data.Fault?.Error?.[0];
+  return {
+    message: error?.Message || 'Unknown QuickBooks error',
+    code: error?.code,
+    detail: error?.Detail,
+    fullError: data,
+  };
+}
+
+/**
+ * Create an invoice in QuickBooks
+ *
+ * @param invoice - The invoice data to create
+ * @param organizationId - Optional organization ID for multi-tenant mode
+ */
+export async function createInvoice(
+  invoice: QBOInvoice,
+  organizationId?: string
+): Promise<{
   success: boolean;
   invoiceId?: string;
   docNumber?: string;
   response?: unknown;
   error?: string;
+  errorCode?: string;
+  errorDetail?: string;
 }> {
-  const tokenInfo = await getValidToken();
+  const tokenInfo = await getTokenForOrg(organizationId);
   if (!tokenInfo) {
     return {
       success: false,
       error: 'Not connected to QuickBooks. Please authorize first.',
+      errorCode: 'NO_TOKEN',
     };
   }
 
@@ -65,12 +130,22 @@ export async function createInvoice(invoice: QBOInvoice): Promise<{
     const data = await response.json() as QBOInvoiceResponse;
 
     if (!response.ok) {
-      const errorMessage = data.Fault?.Error?.[0]?.Message ||
-                          data.Fault?.Error?.[0]?.Detail ||
-                          'Unknown error from QuickBooks';
+      const errorInfo = formatQBOError(data);
+
+      // Log detailed error for debugging
+      console.error('QBO Invoice Creation Failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        organizationId,
+        realmId,
+        error: errorInfo,
+      });
+
       return {
         success: false,
-        error: errorMessage,
+        error: errorInfo.message,
+        errorCode: errorInfo.code,
+        errorDetail: errorInfo.detail,
         response: data,
       };
     }
@@ -82,9 +157,18 @@ export async function createInvoice(invoice: QBOInvoice): Promise<{
       response: data,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create invoice';
+
+    console.error('QBO Invoice Creation Exception:', {
+      organizationId,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create invoice',
+      error: errorMessage,
+      errorCode: 'NETWORK_ERROR',
     };
   }
 }
@@ -139,13 +223,26 @@ const mockInvoices: Record<string, unknown> = {
   },
 };
 
-// Get an invoice by ID
-export async function getInvoice(invoiceId: string): Promise<{
+/**
+ * Get an invoice by ID
+ */
+export async function getInvoice(
+  invoiceId: string,
+  organizationId?: string
+): Promise<{
   success: boolean;
   invoice?: unknown;
   error?: string;
 }> {
-  const tokenInfo = await getValidToken();
+  // If using mock data, return mock invoice first
+  if (process.env.USE_MOCK_DATA === 'true' && mockInvoices[invoiceId]) {
+    return {
+      success: true,
+      invoice: mockInvoices[invoiceId],
+    };
+  }
+
+  const tokenInfo = await getTokenForOrg(organizationId);
   if (!tokenInfo) {
     // Return mock invoice if available (for demo purposes)
     if (mockInvoices[invoiceId]) {
@@ -176,9 +273,17 @@ export async function getInvoice(invoiceId: string): Promise<{
     const data = await response.json() as QBOInvoiceResponse;
 
     if (!response.ok) {
+      // Fallback to mock invoice if real one not found
+      if (mockInvoices[invoiceId]) {
+        return {
+          success: true,
+          invoice: mockInvoices[invoiceId],
+        };
+      }
+      const errorInfo = formatQBOError(data);
       return {
         success: false,
-        error: data.Fault?.Error?.[0]?.Message || 'Failed to get invoice',
+        error: errorInfo.message,
       };
     }
 
@@ -187,6 +292,13 @@ export async function getInvoice(invoiceId: string): Promise<{
       invoice: data.Invoice,
     };
   } catch (error) {
+    // Fallback to mock invoice on error
+    if (mockInvoices[invoiceId]) {
+      return {
+        success: true,
+        invoice: mockInvoices[invoiceId],
+      };
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get invoice',
@@ -194,13 +306,18 @@ export async function getInvoice(invoiceId: string): Promise<{
   }
 }
 
-// Query customers (for mapping CustomerRef)
-export async function getCustomers(searchTerm?: string): Promise<{
+/**
+ * Query customers (for mapping CustomerRef)
+ */
+export async function getCustomers(
+  searchTerm?: string,
+  organizationId?: string
+): Promise<{
   success: boolean;
   customers?: Array<{ id: string; name: string; email?: string }>;
   error?: string;
 }> {
-  const tokenInfo = await getValidToken();
+  const tokenInfo = await getTokenForOrg(organizationId);
   if (!tokenInfo) {
     return {
       success: false,
@@ -213,7 +330,9 @@ export async function getCustomers(searchTerm?: string): Promise<{
 
   let query = "SELECT * FROM Customer WHERE Active = true";
   if (searchTerm) {
-    query += ` AND DisplayName LIKE '%${searchTerm}%'`;
+    // Escape single quotes in search term to prevent injection
+    const escapedTerm = searchTerm.replace(/'/g, "\\'");
+    query += ` AND DisplayName LIKE '%${escapedTerm}%'`;
   }
   query += " MAXRESULTS 100";
 
@@ -228,12 +347,19 @@ export async function getCustomers(searchTerm?: string): Promise<{
       },
     });
 
-    const data = await response.json() as QBOQueryResponse<{ Customer?: Array<{ Id: string; DisplayName: string; PrimaryEmailAddr?: { Address: string } }> }>;
+    const data = await response.json() as QBOQueryResponse<{
+      Customer?: Array<{
+        Id: string;
+        DisplayName: string;
+        PrimaryEmailAddr?: { Address: string }
+      }>
+    }>;
 
     if (!response.ok) {
+      const errorInfo = formatQBOError(data);
       return {
         success: false,
-        error: data.Fault?.Error?.[0]?.Message || 'Failed to get customers',
+        error: errorInfo.message,
       };
     }
 
@@ -255,13 +381,18 @@ export async function getCustomers(searchTerm?: string): Promise<{
   }
 }
 
-// Query items/products (for mapping ItemRef)
-export async function getItems(searchTerm?: string): Promise<{
+/**
+ * Query items/products (for mapping ItemRef)
+ */
+export async function getItems(
+  searchTerm?: string,
+  organizationId?: string
+): Promise<{
   success: boolean;
   items?: Array<{ id: string; name: string; type: string; unitPrice?: number }>;
   error?: string;
 }> {
-  const tokenInfo = await getValidToken();
+  const tokenInfo = await getTokenForOrg(organizationId);
   if (!tokenInfo) {
     return {
       success: false,
@@ -274,7 +405,9 @@ export async function getItems(searchTerm?: string): Promise<{
 
   let query = "SELECT * FROM Item WHERE Active = true";
   if (searchTerm) {
-    query += ` AND Name LIKE '%${searchTerm}%'`;
+    // Escape single quotes in search term to prevent injection
+    const escapedTerm = searchTerm.replace(/'/g, "\\'");
+    query += ` AND Name LIKE '%${escapedTerm}%'`;
   }
   query += " MAXRESULTS 100";
 
@@ -289,12 +422,20 @@ export async function getItems(searchTerm?: string): Promise<{
       },
     });
 
-    const data = await response.json() as QBOQueryResponse<{ Item?: Array<{ Id: string; Name: string; Type: string; UnitPrice?: number }> }>;
+    const data = await response.json() as QBOQueryResponse<{
+      Item?: Array<{
+        Id: string;
+        Name: string;
+        Type: string;
+        UnitPrice?: number
+      }>
+    }>;
 
     if (!response.ok) {
+      const errorInfo = formatQBOError(data);
       return {
         success: false,
-        error: data.Fault?.Error?.[0]?.Message || 'Failed to get items',
+        error: errorInfo.message,
       };
     }
 
@@ -317,13 +458,15 @@ export async function getItems(searchTerm?: string): Promise<{
   }
 }
 
-// Get company info
-export async function getCompanyInfo(): Promise<{
+/**
+ * Get company info
+ */
+export async function getCompanyInfo(organizationId?: string): Promise<{
   success: boolean;
   company?: { id: string; name: string; country: string };
   error?: string;
 }> {
-  const tokenInfo = await getValidToken();
+  const tokenInfo = await getTokenForOrg(organizationId);
   if (!tokenInfo) {
     return {
       success: false,
@@ -347,9 +490,10 @@ export async function getCompanyInfo(): Promise<{
     const data = await response.json() as QBOCompanyInfoResponse;
 
     if (!response.ok) {
+      const errorInfo = formatQBOError(data);
       return {
         success: false,
-        error: data.Fault?.Error?.[0]?.Message || 'Failed to get company info',
+        error: errorInfo.message,
       };
     }
 

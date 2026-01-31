@@ -1,5 +1,12 @@
 import { Router, Request, Response } from 'express';
-import * as dataService from '../services/dataService';
+import {
+  legacyGetSourceById,
+  legacyGetMappings,
+  createMapping,
+  getMappingById,
+  updateMapping,
+  DEFAULT_ORGANIZATION_ID,
+} from '../services/dataService';
 import {
   transformPayloadToInvoice,
   getQBOInvoiceFields,
@@ -14,7 +21,7 @@ router.get('/sources/:sourceId/mappings', async (req: Request, res: Response) =>
   try {
     const { sourceId } = req.params;
 
-    const source = await dataService.getSourceById(sourceId);
+    const source = await legacyGetSourceById(sourceId);
     if (!source) {
       return res.status(404).json({
         success: false,
@@ -22,7 +29,7 @@ router.get('/sources/:sourceId/mappings', async (req: Request, res: Response) =>
       });
     }
 
-    const mappings = await dataService.getMappings(sourceId);
+    const mappings = await legacyGetMappings(sourceId);
 
     return res.json({
       success: true,
@@ -57,7 +64,7 @@ router.post('/sources/:sourceId/mappings', async (req: Request, res: Response) =
       });
     }
 
-    const source = await dataService.getSourceById(sourceId);
+    const source = await legacyGetSourceById(sourceId);
     if (!source) {
       return res.status(404).json({
         success: false,
@@ -65,7 +72,8 @@ router.post('/sources/:sourceId/mappings', async (req: Request, res: Response) =
       });
     }
 
-    const mapping = await dataService.createMapping(
+    const mapping = await createMapping(
+      DEFAULT_ORGANIZATION_ID,
       sourceId,
       name,
       field_mappings,
@@ -91,7 +99,7 @@ router.get('/:mappingId', async (req: Request, res: Response) => {
   try {
     const { mappingId } = req.params;
 
-    const mapping = await dataService.getMappingById(mappingId);
+    const mapping = await getMappingById(DEFAULT_ORGANIZATION_ID, mappingId);
 
     if (!mapping) {
       return res.status(404).json({
@@ -119,7 +127,7 @@ router.put('/:mappingId', async (req: Request, res: Response) => {
     const { mappingId } = req.params;
     const { name, description, field_mappings, static_values, is_active } = req.body;
 
-    const mapping = await dataService.getMappingById(mappingId);
+    const mapping = await getMappingById(DEFAULT_ORGANIZATION_ID, mappingId);
     if (!mapping) {
       return res.status(404).json({
         success: false,
@@ -127,7 +135,7 @@ router.put('/:mappingId', async (req: Request, res: Response) => {
       });
     }
 
-    await dataService.updateMapping(mappingId, {
+    await updateMapping(DEFAULT_ORGANIZATION_ID, mappingId, {
       name,
       description,
       field_mappings,
@@ -153,7 +161,7 @@ router.delete('/:mappingId', async (req: Request, res: Response) => {
   try {
     const { mappingId } = req.params;
 
-    const mapping = await dataService.getMappingById(mappingId);
+    const mapping = await getMappingById(DEFAULT_ORGANIZATION_ID, mappingId);
     if (!mapping) {
       return res.status(404).json({
         success: false,
@@ -161,7 +169,7 @@ router.delete('/:mappingId', async (req: Request, res: Response) => {
       });
     }
 
-    await dataService.updateMapping(mappingId, { is_active: false });
+    await updateMapping(DEFAULT_ORGANIZATION_ID, mappingId, { is_active: false });
 
     return res.json({
       success: true,
@@ -189,7 +197,7 @@ router.post('/:mappingId/test', async (req: Request, res: Response) => {
       });
     }
 
-    const mapping = await dataService.getMappingById(mappingId);
+    const mapping = await getMappingById(DEFAULT_ORGANIZATION_ID, mappingId);
     if (!mapping) {
       return res.status(404).json({
         success: false,
@@ -217,7 +225,7 @@ router.post('/:mappingId/activate', async (req: Request, res: Response) => {
   try {
     const { mappingId } = req.params;
 
-    const mapping = await dataService.getMappingById(mappingId);
+    const mapping = await getMappingById(DEFAULT_ORGANIZATION_ID, mappingId);
     if (!mapping) {
       return res.status(404).json({
         success: false,
@@ -226,15 +234,15 @@ router.post('/:mappingId/activate', async (req: Request, res: Response) => {
     }
 
     // Deactivate other mappings for this source
-    const otherMappings = await dataService.getMappings(mapping.source_id);
+    const otherMappings = await legacyGetMappings(mapping.source_id);
     for (const m of otherMappings) {
       if (m.mapping_id !== mappingId && m.is_active) {
-        await dataService.updateMapping(m.mapping_id, { is_active: false });
+        await updateMapping(DEFAULT_ORGANIZATION_ID, m.mapping_id, { is_active: false });
       }
     }
 
     // Activate this mapping
-    await dataService.updateMapping(mappingId, { is_active: true });
+    await updateMapping(DEFAULT_ORGANIZATION_ID, mappingId, { is_active: true });
 
     return res.json({
       success: true,

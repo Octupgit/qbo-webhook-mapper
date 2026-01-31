@@ -55,11 +55,16 @@ export default function LogsPage() {
 
   const loadLogs = async () => {
     setLoading(true);
+    console.log('[LogsPage] Loading logs with sourceId filter:', selectedSourceId || 'none');
     try {
       const data = await invoicesApi.getSyncLogs(100, selectedSourceId || undefined);
+      console.log('[LogsPage] Loaded logs:', data.length, 'entries');
+      if (data.length > 0) {
+        console.log('[LogsPage] Sample log:', data[0]);
+      }
       setLogs(data);
     } catch (err) {
-      console.error('Failed to load logs:', err);
+      console.error('[LogsPage] Failed to load logs:', err);
     } finally {
       setLoading(false);
     }

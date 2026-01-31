@@ -1,23 +1,52 @@
 import { Router, Request, Response } from 'express';
-import * as dataService from '../services/dataService';
+import {
+  getPayloadById,
+  legacyGetActiveMapping,
+  legacyCreateSyncLog,
+  updateSyncLog,
+  markPayloadProcessed,
+  getOrganizations,
+  getActiveMapping,
+  createSyncLog,
+  DEFAULT_ORGANIZATION_ID,
+} from '../services/dataService';
 import * as qboInvoiceService from '../services/qboInvoiceService';
 import { transformPayloadToInvoice } from '../services/transformService';
 
 const router = Router();
+
+/**
+ * Helper: Find payload across all organizations
+ */
+async function findPayloadAcrossOrgs(payloadId: string): Promise<{
+  payload: Awaited<ReturnType<typeof getPayloadById>> | null;
+  organizationId: string | null;
+}> {
+  const orgs = await getOrganizations();
+  for (const org of orgs) {
+    const payload = await getPayloadById(org.organization_id, payloadId);
+    if (payload) {
+      return { payload, organizationId: org.organization_id };
+    }
+  }
+  return { payload: null, organizationId: null };
+}
 
 // POST /api/invoices/sync/:payloadId - Sync single payload to QBO
 router.post('/sync/:payloadId', async (req: Request, res: Response) => {
   try {
     const { payloadId } = req.params;
 
-    // Get the payload
-    const payload = await dataService.getPayloadById(payloadId);
-    if (!payload) {
+    // Get the payload (search across all orgs)
+    const { payload, organizationId } = await findPayloadAcrossOrgs(payloadId);
+    if (!payload || !organizationId) {
       return res.status(404).json({
         success: false,
         error: 'Payload not found',
       });
     }
+
+    console.log(`[Sync] Found payload ${payloadId} in org ${organizationId}`);
 
     // Check if already processed
     if (payload.processed && payload.invoice_id) {
@@ -28,8 +57,8 @@ router.post('/sync/:payloadId', async (req: Request, res: Response) => {
       });
     }
 
-    // Get active mapping for this source
-    const mapping = await dataService.getActiveMapping(payload.source_id);
+    // Get active mapping for this source (use org-specific lookup)
+    const mapping = await getActiveMapping(organizationId, payload.source_id);
     if (!mapping) {
       return res.status(400).json({
         success: false,
@@ -37,8 +66,9 @@ router.post('/sync/:payloadId', async (req: Request, res: Response) => {
       });
     }
 
-    // Create sync log
-    const syncLog = await dataService.createSyncLog(
+    // Create sync log for the correct organization
+    const syncLog = await createSyncLog(
+      organizationId,
       payloadId,
       payload.source_id,
       mapping.mapping_id
@@ -49,7 +79,7 @@ router.post('/sync/:payloadId', async (req: Request, res: Response) => {
     const transformResult = transformPayloadToInvoice(sourcePayload, mapping);
 
     if (!transformResult.success) {
-      await dataService.updateSyncLog(syncLog.log_id, {
+      await updateSyncLog(organizationId, syncLog.log_id, {
         status: 'failed',
         error_message: transformResult.validationErrors.join('; '),
         request_payload: JSON.stringify(transformResult.transformedInvoice),
@@ -65,15 +95,15 @@ router.post('/sync/:payloadId', async (req: Request, res: Response) => {
     }
 
     // Update sync log with request payload
-    await dataService.updateSyncLog(syncLog.log_id, {
+    await updateSyncLog(organizationId, syncLog.log_id, {
       request_payload: JSON.stringify(transformResult.transformedInvoice),
     });
 
-    // Create invoice in QBO
-    const qboResult = await qboInvoiceService.createInvoice(transformResult.transformedInvoice!);
+    // Create invoice in QBO (use the payload's organization)
+    const qboResult = await qboInvoiceService.createInvoice(transformResult.transformedInvoice!, organizationId);
 
     if (!qboResult.success) {
-      await dataService.updateSyncLog(syncLog.log_id, {
+      await updateSyncLog(organizationId, syncLog.log_id, {
         status: 'failed',
         error_message: qboResult.error,
         response_payload: JSON.stringify(qboResult.response),
@@ -87,7 +117,7 @@ router.post('/sync/:payloadId', async (req: Request, res: Response) => {
     }
 
     // Update sync log with success
-    await dataService.updateSyncLog(syncLog.log_id, {
+    await updateSyncLog(organizationId, syncLog.log_id, {
       status: 'success',
       qbo_invoice_id: qboResult.invoiceId,
       qbo_doc_number: qboResult.docNumber,
@@ -96,7 +126,7 @@ router.post('/sync/:payloadId', async (req: Request, res: Response) => {
     });
 
     // Mark payload as processed
-    await dataService.markPayloadProcessed(payloadId, qboResult.invoiceId!);
+    await markPayloadProcessed(organizationId, payloadId, qboResult.invoiceId!);
 
     return res.json({
       success: true,
@@ -131,9 +161,9 @@ router.post('/sync-batch', async (req: Request, res: Response) => {
 
     for (const payloadId of payloadIds) {
       try {
-        // Process each payload (simplified - in production use queue)
-        const payload = await dataService.getPayloadById(payloadId);
-        if (!payload) {
+        // Process each payload - search across all organizations
+        const { payload, organizationId } = await findPayloadAcrossOrgs(payloadId);
+        if (!payload || !organizationId) {
           results.push({ payloadId, success: false, error: 'Not found' });
           continue;
         }
@@ -143,7 +173,7 @@ router.post('/sync-batch', async (req: Request, res: Response) => {
           continue;
         }
 
-        const mapping = await dataService.getActiveMapping(payload.source_id);
+        const mapping = await getActiveMapping(organizationId, payload.source_id);
         if (!mapping) {
           results.push({ payloadId, success: false, error: 'No active mapping' });
           continue;
@@ -161,10 +191,10 @@ router.post('/sync-batch', async (req: Request, res: Response) => {
           continue;
         }
 
-        const qboResult = await qboInvoiceService.createInvoice(transformResult.transformedInvoice!);
+        const qboResult = await qboInvoiceService.createInvoice(transformResult.transformedInvoice!, organizationId);
 
         if (qboResult.success) {
-          await dataService.markPayloadProcessed(payloadId, qboResult.invoiceId!);
+          await markPayloadProcessed(organizationId, payloadId, qboResult.invoiceId!);
           results.push({
             payloadId,
             success: true,
@@ -211,7 +241,7 @@ router.get('/:invoiceId', async (req: Request, res: Response) => {
   try {
     const { invoiceId } = req.params;
 
-    const result = await qboInvoiceService.getInvoice(invoiceId);
+    const result = await qboInvoiceService.getInvoice(invoiceId, DEFAULT_ORGANIZATION_ID);
 
     if (!result.success) {
       return res.status(400).json({
@@ -237,7 +267,7 @@ router.get('/:invoiceId', async (req: Request, res: Response) => {
 router.get('/qbo/customers', async (req: Request, res: Response) => {
   try {
     const search = req.query.search as string;
-    const result = await qboInvoiceService.getCustomers(search);
+    const result = await qboInvoiceService.getCustomers(search, DEFAULT_ORGANIZATION_ID);
 
     if (!result.success) {
       return res.status(400).json({
@@ -263,7 +293,7 @@ router.get('/qbo/customers', async (req: Request, res: Response) => {
 router.get('/qbo/items', async (req: Request, res: Response) => {
   try {
     const search = req.query.search as string;
-    const result = await qboInvoiceService.getItems(search);
+    const result = await qboInvoiceService.getItems(search, DEFAULT_ORGANIZATION_ID);
 
     if (!result.success) {
       return res.status(400).json({

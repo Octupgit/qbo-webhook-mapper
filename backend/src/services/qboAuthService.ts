@@ -1,8 +1,12 @@
 import OAuthClient from 'intuit-oauth';
 import CryptoJS from 'crypto-js';
 import config from '../config';
-import * as dataService from './dataService';
-import { OAuthToken } from '../types';
+import {
+  legacySaveToken,
+  legacyGetActiveToken,
+  updateToken,
+  DEFAULT_ORGANIZATION_ID,
+} from './dataService';
 
 // Initialize OAuth client
 const oauthClient = new OAuthClient({
@@ -49,8 +53,8 @@ export async function handleCallback(url: string): Promise<{
   const accessTokenExpiresAt = new Date(Date.now() + (token.expires_in || 3600) * 1000);
   const refreshTokenExpiresAt = new Date(Date.now() + (token.x_refresh_token_expires_in || 8726400) * 1000);
 
-  // Save encrypted tokens to BigQuery
-  await dataService.saveToken({
+  // Save encrypted tokens to storage (uses DEFAULT_ORGANIZATION_ID for legacy routes)
+  await legacySaveToken({
     realm_id: realmId,
     access_token: encryptToken(token.access_token),
     refresh_token: encryptToken(token.refresh_token),
@@ -73,7 +77,7 @@ export async function getValidToken(): Promise<{
   accessToken: string;
   realmId: string;
 } | null> {
-  const storedToken = await dataService.getActiveToken();
+  const storedToken = await legacyGetActiveToken();
   if (!storedToken) {
     return null;
   }
@@ -116,7 +120,7 @@ export async function getValidToken(): Promise<{
     const newAccessTokenExpiresAt = new Date(Date.now() + (newToken.expires_in || 3600) * 1000);
 
     // Update token in database
-    await dataService.updateToken(storedToken.token_id, {
+    await updateToken(DEFAULT_ORGANIZATION_ID, storedToken.token_id, {
       access_token: encryptToken(newToken.access_token),
       refresh_token: encryptToken(newToken.refresh_token),
       access_token_expires_at: newAccessTokenExpiresAt,
@@ -129,7 +133,7 @@ export async function getValidToken(): Promise<{
   } catch (error) {
     console.error('Failed to refresh token:', error);
     // Mark token as inactive
-    await dataService.updateToken(storedToken.token_id, { is_active: false });
+    await updateToken(DEFAULT_ORGANIZATION_ID, storedToken.token_id, { is_active: false });
     return null;
   }
 }
@@ -140,7 +144,7 @@ export async function getConnectionStatus(): Promise<{
   realmId?: string;
   expiresAt?: Date;
 }> {
-  const token = await dataService.getActiveToken();
+  const token = await legacyGetActiveToken();
   if (!token) {
     return { connected: false };
   }
@@ -154,7 +158,7 @@ export async function getConnectionStatus(): Promise<{
 
 // Disconnect (revoke tokens)
 export async function disconnect(): Promise<void> {
-  const token = await dataService.getActiveToken();
+  const token = await legacyGetActiveToken();
   if (!token) {
     return;
   }
@@ -173,7 +177,7 @@ export async function disconnect(): Promise<void> {
   }
 
   // Mark token as inactive
-  await dataService.updateToken(token.token_id, { is_active: false });
+  await updateToken(DEFAULT_ORGANIZATION_ID, token.token_id, { is_active: false });
 }
 
 // Get OAuth client for making API calls

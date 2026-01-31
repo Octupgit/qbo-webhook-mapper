@@ -99,3 +99,145 @@ export interface TransformTestResult {
   validationErrors: string[];
   warnings: string[];
 }
+
+// =============================================================================
+// MULTI-TENANT TYPES
+// =============================================================================
+
+// Organization
+export interface Organization {
+  organization_id: string;
+  name: string;
+  slug: string;
+  plan_tier: 'free' | 'starter' | 'professional' | 'enterprise';
+  is_active: boolean;
+  settings?: OrganizationSettings;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface OrganizationSettings {
+  timezone?: string;
+  notification_email?: string;
+  auto_sync_enabled?: boolean;
+}
+
+// Organization Stats
+export interface OrganizationStats {
+  sourceCount: number;
+  qboConnected: boolean;
+  syncStats: {
+    total: number;
+    success: number;
+    failed: number;
+    pending: number;
+  };
+  planLimits: {
+    maxSources: number;
+    maxPayloadsPerDay: number;
+    sourcesUsed: number;
+  };
+}
+
+// Global Mapping Template
+export interface GlobalMappingTemplate {
+  template_id: string;
+  name: string;
+  source_type: string;
+  description?: string;
+  version: number;
+  is_active: boolean;
+  field_mappings: FieldMapping[];
+  static_values?: Record<string, unknown>;
+  priority: number;
+  created_at: string;
+}
+
+// Client Mapping Override
+export interface ClientMappingOverride {
+  override_id: string;
+  organization_id: string;
+  source_id?: string;
+  template_id?: string;
+  name: string;
+  description?: string;
+  field_mappings: FieldMapping[];
+  static_values?: Record<string, unknown>;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+// Merged/Effective Mapping
+export interface MergedMapping {
+  organization_id: string;
+  source_id: string;
+  effective_field_mappings: FieldMapping[];
+  static_values?: Record<string, unknown>;
+  merge_log: MergeLogEntry[];
+  global_template?: GlobalMappingTemplate;
+  client_override?: ClientMappingOverride;
+}
+
+export interface MergeLogEntry {
+  source: 'global_template' | 'client_override' | 'source_mapping';
+  template_id?: string;
+  override_id?: string;
+  mapping_id?: string;
+  fields_applied: string[];
+  priority: number;
+}
+
+// QBO Entities
+export interface QBOCustomer {
+  id: string;
+  name: string;
+  email?: string;
+  company?: string;
+}
+
+export interface QBOItem {
+  id: string;
+  name: string;
+  type: string;
+  unitPrice?: number;
+  description?: string;
+}
+
+// Multi-tenant Connection Status
+export interface OrgConnectionStatus {
+  organization: {
+    id: string;
+    slug: string;
+    name: string;
+    planTier: string;
+  };
+  qbo: {
+    connected: boolean;
+    realmId?: string;
+    companyName?: string;
+    expiresAt?: string;
+    syncStatus?: 'active' | 'expired' | 'error';
+  };
+  connectUrl?: string;
+}
+
+// Admin User
+export interface AdminUser {
+  user_id: string;
+  email: string;
+  name?: string;
+  role: 'admin' | 'super_admin';
+  is_active: boolean;
+  last_login_at?: string;
+  created_at: string;
+}
+
+// Lookup type for Visual Mapper
+export type LookupType = 'customer' | 'item';
+
+// Extended Field Mapping for Visual Mapper
+export interface VisualFieldMapping extends FieldMapping {
+  lookupType?: LookupType;
+  lookupValue?: { id: string; name: string };
+}

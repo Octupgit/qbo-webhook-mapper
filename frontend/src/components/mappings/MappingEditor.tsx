@@ -1,9 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Card, Title, Text, Button, TextInput, Select, SelectItem } from '@tremor/react';
+import { Card, Title, Text, Button, TextInput, Select, SelectItem, Badge } from '@tremor/react';
 import { PlusIcon, TrashIcon, PlayIcon } from '@heroicons/react/24/outline';
 import JsonViewer from '../common/JsonViewer';
 import { FieldMapping, QBOField, Transformation, TransformTestResult } from '../../types';
 import * as mappingsApi from '../../api/mappings';
+import * as invoicesApi from '../../api/invoices';
+
+interface QBOCustomer {
+  id: string;
+  name: string;
+  email?: string;
+}
+
+interface QBOItem {
+  id: string;
+  name: string;
+  type: string;
+  unitPrice?: number;
+}
 
 interface MappingEditorProps {
   sourceId: string;
@@ -29,9 +43,12 @@ export default function MappingEditor({
   const [testResult, setTestResult] = useState<TransformTestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [qboCustomers, setQboCustomers] = useState<QBOCustomer[]>([]);
+  const [qboItems, setQboItems] = useState<QBOItem[]>([]);
 
   useEffect(() => {
     loadMetadata();
+    loadQboData();
   }, []);
 
   useEffect(() => {
@@ -58,6 +75,23 @@ export default function MappingEditor({
       console.error('Failed to load metadata:', err);
     }
   };
+
+  const loadQboData = async () => {
+    try {
+      const [customers, items] = await Promise.all([
+        invoicesApi.getQBOCustomers(),
+        invoicesApi.getQBOItems(),
+      ]);
+      setQboCustomers(customers);
+      setQboItems(items);
+    } catch (err) {
+      console.error('Failed to load QBO data:', err);
+    }
+  };
+
+  // Check if the field is CustomerRef.value or ItemRef.value
+  const isCustomerRefField = (qboField: string) => qboField === 'CustomerRef.value';
+  const isItemRefField = (qboField: string) => qboField.includes('ItemRef.value');
 
   const loadMapping = async () => {
     if (!mappingId) return;
@@ -246,21 +280,70 @@ export default function MappingEditor({
                     ))}
                   </Select>
 
-                  {/* Or Static Value */}
-                  <div className="mt-2 flex items-center gap-2">
-                    <Text className="text-xs text-gray-500">or static:</Text>
-                    <TextInput
-                      value={mapping.staticValue || ''}
-                      onChange={(e) =>
-                        updateMapping(index, {
-                          staticValue: e.target.value || undefined,
-                          sourceField: e.target.value ? undefined : mapping.sourceField,
-                        })
-                      }
-                      placeholder="Static value"
-                      className="flex-1"
-                    />
-                  </div>
+                  {/* QBO Customer/Item Picker or Static Value */}
+                  {isCustomerRefField(mapping.qboField) && qboCustomers.length > 0 ? (
+                    <div className="mt-2">
+                      <Text className="text-xs text-gray-500 mb-1">Select QBO Customer:</Text>
+                      <Select
+                        value={mapping.staticValue || ''}
+                        onValueChange={(v) =>
+                          updateMapping(index, {
+                            staticValue: v || undefined,
+                            sourceField: v ? undefined : mapping.sourceField,
+                          })
+                        }
+                        placeholder="Select a QBO Customer"
+                      >
+                        {qboCustomers.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            <span className="flex items-center gap-2">
+                              <Badge size="xs" color="blue">{c.id}</Badge>
+                              {c.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </Select>
+                    </div>
+                  ) : isItemRefField(mapping.qboField) && qboItems.length > 0 ? (
+                    <div className="mt-2">
+                      <Text className="text-xs text-gray-500 mb-1">Select QBO Item:</Text>
+                      <Select
+                        value={mapping.staticValue || ''}
+                        onValueChange={(v) =>
+                          updateMapping(index, {
+                            staticValue: v || undefined,
+                            sourceField: v ? undefined : mapping.sourceField,
+                          })
+                        }
+                        placeholder="Select a QBO Item"
+                      >
+                        {qboItems.map((i) => (
+                          <SelectItem key={i.id} value={i.id}>
+                            <span className="flex items-center gap-2">
+                              <Badge size="xs" color="green">{i.id}</Badge>
+                              {i.name}
+                              {i.unitPrice ? ` ($${i.unitPrice})` : ''}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-2">
+                      <Text className="text-xs text-gray-500">or static:</Text>
+                      <TextInput
+                        value={mapping.staticValue || ''}
+                        onChange={(e) =>
+                          updateMapping(index, {
+                            staticValue: e.target.value || undefined,
+                            sourceField: e.target.value ? undefined : mapping.sourceField,
+                          })
+                        }
+                        placeholder="Static value"
+                        className="flex-1"
+                      />
+                    </div>
+                  )}
 
                   {/* Transformation */}
                   <Select

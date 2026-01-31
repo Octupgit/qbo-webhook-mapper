@@ -5,6 +5,35 @@ import config from './config';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
+// =============================================================================
+// GLOBAL ERROR HANDLERS
+// =============================================================================
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+  console.error('Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
+  // Log to error tracking service in production
+  if (process.env.NODE_ENV === 'production') {
+    // TODO: Send to error tracking service (Sentry, etc.)
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught Exception:', error);
+  // Log to error tracking service in production
+  if (process.env.NODE_ENV === 'production') {
+    // TODO: Send to error tracking service (Sentry, etc.)
+  }
+  // Exit process on uncaught exception (recommended)
+  process.exit(1);
+});
+
+// =============================================================================
+// EXPRESS APPLICATION
+// =============================================================================
+
 const app = express();
 
 // Middleware - In production, allow same-origin requests
