@@ -190,6 +190,55 @@ function initSampleData() {
   };
   mappings.set(sampleMapping.mapping_id, sampleMapping);
 
+  // Stripe mapping configuration
+  const stripeMapping: MappingConfiguration = {
+    mapping_id: 'sample-mapping-002',
+    source_id: stripeSource.source_id,
+    name: 'Stripe Payment to Invoice',
+    description: 'Maps Stripe payment intents to QuickBooks Invoice',
+    version: 1,
+    is_active: true,
+    field_mappings: [
+      { qboField: 'CustomerRef.value', sourceField: '$.customer', isRequired: true },
+      { qboField: 'DocNumber', sourceField: '$.metadata.order_id', transformation: 'concat:STR-:' },
+      { qboField: 'CustomerMemo.value', sourceField: '$.description' },
+      { qboField: 'BillEmail.Address', sourceField: '$.receipt_email' },
+      { qboField: 'Line[0].Amount', sourceField: '$.amount', transformation: 'multiply:0.01', isRequired: true },
+      { qboField: 'Line[0].Description', staticValue: 'Stripe Payment' },
+      { qboField: 'Line[0].SalesItemLineDetail.ItemRef.value', staticValue: '1', isRequired: true },
+      { qboField: 'CurrencyRef.value', sourceField: '$.currency', transformation: 'toUpperCase' },
+    ],
+    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+  };
+  mappings.set(stripeMapping.mapping_id, stripeMapping);
+
+  // WooCommerce mapping configuration
+  const wooMapping: MappingConfiguration = {
+    mapping_id: 'sample-mapping-003',
+    source_id: wooSource.source_id,
+    name: 'WooCommerce Order to Invoice',
+    description: 'Maps WooCommerce orders to QuickBooks Invoice',
+    version: 1,
+    is_active: true,
+    field_mappings: [
+      { qboField: 'CustomerRef.value', sourceField: '$.billing.email', transformation: 'toString', isRequired: true },
+      { qboField: 'DocNumber', sourceField: '$.number' },
+      { qboField: 'BillEmail.Address', sourceField: '$.billing.email' },
+      { qboField: 'BillAddr.Line1', sourceField: '$.billing.address_1' },
+      { qboField: 'BillAddr.City', sourceField: '$.billing.city' },
+      { qboField: 'BillAddr.CountrySubDivisionCode', sourceField: '$.billing.state' },
+      { qboField: 'BillAddr.PostalCode', sourceField: '$.billing.postcode' },
+      { qboField: 'Line[0].Amount', sourceField: '$.total', transformation: 'toNumber', isRequired: true },
+      { qboField: 'Line[0].Description', sourceField: '$.line_items[0].name' },
+      { qboField: 'Line[0].SalesItemLineDetail.ItemRef.value', staticValue: '1', isRequired: true },
+      { qboField: 'Line[0].SalesItemLineDetail.Qty', sourceField: '$.line_items[0].quantity', transformation: 'toNumber' },
+      { qboField: 'CurrencyRef.value', sourceField: '$.currency' },
+      { qboField: 'TxnDate', sourceField: '$.date_created', transformation: 'formatDate' },
+    ],
+    created_at: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
+  };
+  mappings.set(wooMapping.mapping_id, wooMapping);
+
   // Sample sync logs
   const successLog: SyncLog = {
     log_id: 'sample-log-001',
@@ -208,8 +257,9 @@ function initSampleData() {
     log_id: 'sample-log-002',
     payload_id: 'sample-payload-002',
     source_id: stripeSource.source_id,
+    mapping_id: stripeMapping.mapping_id,
     status: 'failed',
-    error_message: 'CustomerRef.value is required - no customer mapping configured',
+    error_message: 'QBO Error: Invalid customer reference - customer cus_OvXXXXXX not found in QuickBooks',
     retry_count: 1,
     created_at: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
   };
@@ -219,13 +269,14 @@ function initSampleData() {
     log_id: 'sample-log-003',
     payload_id: 'sample-payload-003',
     source_id: wooSource.source_id,
+    mapping_id: wooMapping.mapping_id,
     status: 'pending',
     retry_count: 0,
     created_at: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
   };
   logs.set(pendingLog.log_id, pendingLog);
 
-  console.log('✓ Mock data initialized with 3 sources, 3 payloads, 1 mapping, and 3 sync logs');
+  console.log('✓ Mock data initialized with 3 sources, 3 payloads, 3 mappings, and 3 sync logs');
 }
 
 // Initialize on module load
