@@ -73,7 +73,7 @@ export interface OAuthToken {
   qbo_company_name?: string;         // Cached company name from QBO
   connection_name?: string;          // User-defined friendly name
   last_sync_at?: Date;               // Last successful sync time
-  sync_status?: 'active' | 'expired' | 'error';
+  sync_status?: 'active' | 'expired' | 'error' | 'revoked' | 'disconnected' | 'refresh_failed';
   is_active: boolean;
   created_at: Date;
   updated_at?: Date;

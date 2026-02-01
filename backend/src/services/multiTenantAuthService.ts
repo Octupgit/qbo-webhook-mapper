@@ -341,77 +341,22 @@ export async function handleCallback(url: string): Promise<{
 
 /**
  * Get valid token for an organization, refreshing if necessary
+ *
+ * This delegates to tokenManager.getValidToken for robust handling:
+ * - Automatic token refresh with retry
+ * - Proper error classification (expired vs revoked vs network error)
+ * - Always persists both access_token and refresh_token on refresh
  */
 export async function getValidToken(organizationId: string): Promise<{
   success: boolean;
   accessToken?: string;
   realmId?: string;
   error?: string;
+  needsReconnect?: boolean;
 }> {
-  const storedToken = await getActiveToken(organizationId);
-  if (!storedToken) {
-    return { success: false, error: 'No active token found' };
-  }
-
-  const decryptedAccessToken = decryptToken(storedToken.access_token);
-  const decryptedRefreshToken = decryptToken(storedToken.refresh_token);
-
-  // Check if access token is expired (with 5 min buffer)
-  const expiresAt = new Date(storedToken.access_token_expires_at);
-  const isExpired = expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
-
-  if (!isExpired) {
-    // Token is still valid
-    return {
-      success: true,
-      accessToken: decryptedAccessToken,
-      realmId: storedToken.realm_id,
-    };
-  }
-
-  // Token is expired, refresh it using a fresh client
-  const oauthClient = createOAuthClient();
-
-  try {
-    oauthClient.setToken({
-      access_token: decryptedAccessToken,
-      refresh_token: decryptedRefreshToken,
-      token_type: storedToken.token_type,
-      realmId: storedToken.realm_id,
-    });
-
-    const authResponse = await oauthClient.refresh();
-    const newToken = authResponse.getJson();
-
-    const newAccessTokenExpiresAt = new Date(Date.now() + (newToken.expires_in || 3600) * 1000);
-
-    // Update token in database
-    await updateToken(organizationId, storedToken.token_id, {
-      access_token: encryptToken(newToken.access_token),
-      refresh_token: encryptToken(newToken.refresh_token),
-      access_token_expires_at: newAccessTokenExpiresAt,
-      sync_status: 'active',
-    });
-
-    return {
-      success: true,
-      accessToken: newToken.access_token,
-      realmId: storedToken.realm_id,
-    };
-  } catch (error) {
-    console.error('Failed to refresh token:', error);
-
-    // Mark token as expired/error
-    await updateToken(organizationId, storedToken.token_id, {
-      sync_status: 'expired',
-      is_active: false,
-    });
-
-    return {
-      success: false,
-      error: 'Token refresh failed. Please reconnect to QuickBooks.',
-    };
-  }
+  // Import dynamically to avoid circular dependencies
+  const { getValidToken: tokenManagerGetValidToken } = await import('./tokenManager');
+  return tokenManagerGetValidToken(organizationId);
 }
 
 /**
@@ -422,7 +367,7 @@ export async function getConnectionStatus(organizationId: string): Promise<{
   realmId?: string;
   companyName?: string;
   expiresAt?: Date;
-  syncStatus?: 'active' | 'expired' | 'error';
+  syncStatus?: 'active' | 'expired' | 'error' | 'revoked' | 'disconnected' | 'refresh_failed';
 }> {
   const token = await getActiveToken(organizationId);
   if (!token) {

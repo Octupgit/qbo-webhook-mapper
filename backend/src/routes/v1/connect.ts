@@ -204,6 +204,17 @@ router.get('/org/:clientSlug/status', tenantContext, async (req: Request, res: R
 
     const status = await getConnectionStatus(organization_id);
 
+    // Build base URL for connect link
+    const apiBaseUrl = process.env.API_BASE_URL || req.protocol + '://' + req.get('host');
+    const connectUrl = `${apiBaseUrl}/api/v1/connect/${organization_slug}?source=admin`;
+
+    // Determine if reconnection is needed
+    const needsReconnect =
+      !status.connected ||
+      status.syncStatus === 'expired' ||
+      status.syncStatus === 'revoked' ||
+      status.syncStatus === 'disconnected';
+
     return res.json({
       success: true,
       data: {
@@ -219,10 +230,9 @@ router.get('/org/:clientSlug/status', tenantContext, async (req: Request, res: R
           companyName: status.companyName,
           expiresAt: status.expiresAt,
           syncStatus: status.syncStatus,
+          needsReconnect,
         },
-        connectUrl: status.connected
-          ? null
-          : `${process.env.API_BASE_URL || req.protocol + '://' + req.get('host')}/api/v1/connect/${organization_slug}?source=admin`,
+        connectUrl: needsReconnect ? connectUrl : null,
       },
     });
   } catch (error) {
@@ -230,6 +240,45 @@ router.get('/org/:clientSlug/status', tenantContext, async (req: Request, res: R
     return res.status(500).json({
       success: false,
       error: 'Failed to get connection status',
+    });
+  }
+});
+
+/**
+ * GET /api/v1/org/:clientSlug/health
+ *
+ * Detailed health check for QBO connection.
+ * Returns token expiration times and specific status for debugging.
+ */
+router.get('/org/:clientSlug/health', tenantContext, async (req: Request, res: Response) => {
+  try {
+    const { organization_id, organization_slug } = req.tenant!;
+
+    // Import tokenManager dynamically
+    const { checkConnectionHealth } = await import('../../services/tokenManager');
+    const health = await checkConnectionHealth(organization_id);
+
+    // Build connect URL
+    const apiBaseUrl = process.env.API_BASE_URL || req.protocol + '://' + req.get('host');
+    const connectUrl = `${apiBaseUrl}/api/v1/connect/${organization_slug}?source=admin`;
+
+    return res.json({
+      success: true,
+      data: {
+        healthy: health.healthy,
+        status: health.status,
+        message: health.message,
+        companyName: health.companyName,
+        accessTokenExpiresAt: health.accessTokenExpiresAt,
+        refreshTokenExpiresAt: health.refreshTokenExpiresAt,
+        connectUrl: health.healthy ? null : connectUrl,
+      },
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to check connection health',
     });
   }
 });
@@ -280,7 +329,7 @@ router.post('/org/:clientSlug/disconnect', tenantContext, async (req: Request, r
  */
 router.get('/org/:clientSlug/qbo/customers', tenantContext, async (req: Request, res: Response) => {
   try {
-    const { organization_id } = req.tenant!;
+    const { organization_id, organization_slug } = req.tenant!;
     const search = req.query.search as string;
 
     // Import dynamically to avoid circular deps
@@ -288,9 +337,15 @@ router.get('/org/:clientSlug/qbo/customers', tenantContext, async (req: Request,
     const result = await qboInvoiceService.getCustomers(search, organization_id);
 
     if (!result.success) {
-      return res.status(400).json({
+      // Build connect URL if reconnection is needed
+      const apiBaseUrl = process.env.API_BASE_URL || req.protocol + '://' + req.get('host');
+      const connectUrl = `${apiBaseUrl}/api/v1/connect/${organization_slug}?source=admin`;
+
+      return res.status(result.needsReconnect ? 401 : 400).json({
         success: false,
         error: result.error,
+        needsReconnect: result.needsReconnect,
+        connectUrl: result.needsReconnect ? connectUrl : undefined,
       });
     }
 
@@ -314,7 +369,7 @@ router.get('/org/:clientSlug/qbo/customers', tenantContext, async (req: Request,
  */
 router.get('/org/:clientSlug/qbo/items', tenantContext, async (req: Request, res: Response) => {
   try {
-    const { organization_id } = req.tenant!;
+    const { organization_id, organization_slug } = req.tenant!;
     const search = req.query.search as string;
 
     // Import dynamically to avoid circular deps
@@ -322,9 +377,15 @@ router.get('/org/:clientSlug/qbo/items', tenantContext, async (req: Request, res
     const result = await qboInvoiceService.getItems(search, organization_id);
 
     if (!result.success) {
-      return res.status(400).json({
+      // Build connect URL if reconnection is needed
+      const apiBaseUrl = process.env.API_BASE_URL || req.protocol + '://' + req.get('host');
+      const connectUrl = `${apiBaseUrl}/api/v1/connect/${organization_slug}?source=admin`;
+
+      return res.status(result.needsReconnect ? 401 : 400).json({
         success: false,
         error: result.error,
+        needsReconnect: result.needsReconnect,
+        connectUrl: result.needsReconnect ? connectUrl : undefined,
       });
     }
 

@@ -3,10 +3,20 @@
  *
  * Handles invoice creation and queries for QuickBooks Online.
  * Supports multi-tenant operations with per-organization token retrieval.
+ *
+ * Uses TokenManager for robust token handling:
+ * - Automatic token refresh on expiration
+ * - Automatic retry on 401 responses
+ * - Graceful error handling with specific error codes
  */
 
 import { getValidToken as legacyGetValidToken } from './qboAuthService';
-import { getValidToken as multiTenantGetValidToken } from './multiTenantAuthService';
+import {
+  executeWithTokenRefresh,
+  getValidToken as tokenManagerGetValidToken,
+  TokenErrorCodes,
+  ApiCallResult,
+} from './tokenManager';
 import { QBOInvoice } from '../types';
 
 // QBO API response types
@@ -46,15 +56,24 @@ function getBaseUrl(): string {
 
 /**
  * Get valid token - supports both legacy (single-tenant) and multi-tenant modes
+ * Uses TokenManager for robust token handling in multi-tenant mode
  */
 async function getTokenForOrg(organizationId?: string): Promise<{
   accessToken: string;
   realmId: string;
+  needsReconnect?: boolean;
+  errorCode?: string;
 } | null> {
-  // Multi-tenant mode
+  // Multi-tenant mode - use TokenManager for robust handling
   if (organizationId) {
-    const result = await multiTenantGetValidToken(organizationId);
+    const result = await tokenManagerGetValidToken(organizationId);
     if (!result.success) {
+      // Log the specific error for debugging
+      console.error(`[QBOInvoiceService] Token error for org ${organizationId}:`, {
+        error: result.error,
+        errorCode: result.errorCode,
+        needsReconnect: result.needsReconnect,
+      });
       return null;
     }
     return {
@@ -90,6 +109,10 @@ function formatQBOError(data: QBOErrorResponse): {
  *
  * @param invoice - The invoice data to create
  * @param organizationId - Optional organization ID for multi-tenant mode
+ *
+ * For multi-tenant mode, uses executeWithTokenRefresh for:
+ * - Automatic token refresh on expiration
+ * - Automatic retry on 401 responses
  */
 export async function createInvoice(
   invoice: QBOInvoice,
@@ -102,18 +125,77 @@ export async function createInvoice(
   error?: string;
   errorCode?: string;
   errorDetail?: string;
+  needsReconnect?: boolean;
 }> {
-  const tokenInfo = await getTokenForOrg(organizationId);
+  const baseUrl = getBaseUrl();
+
+  // Multi-tenant mode: use executeWithTokenRefresh for robust handling
+  if (organizationId) {
+    const result = await executeWithTokenRefresh<QBOInvoiceResponse>(
+      organizationId,
+      async (accessToken, realmId) => {
+        const url = `${baseUrl}/v3/company/${realmId}/invoice`;
+        return fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(invoice),
+        });
+      },
+      async (response) => response.json() as Promise<QBOInvoiceResponse>
+    );
+
+    if (!result.success) {
+      console.error('QBO Invoice Creation Failed:', {
+        organizationId,
+        error: result.error,
+        errorCode: result.errorCode,
+        needsReconnect: result.needsReconnect,
+      });
+
+      return {
+        success: false,
+        error: result.error,
+        errorCode: result.errorCode,
+        needsReconnect: result.needsReconnect,
+      };
+    }
+
+    const data = result.data!;
+    if (data.Fault) {
+      const errorInfo = formatQBOError(data);
+      return {
+        success: false,
+        error: errorInfo.message,
+        errorCode: errorInfo.code,
+        errorDetail: errorInfo.detail,
+        response: data,
+      };
+    }
+
+    return {
+      success: true,
+      invoiceId: data.Invoice?.Id,
+      docNumber: data.Invoice?.DocNumber,
+      response: data,
+    };
+  }
+
+  // Legacy single-tenant mode (backward compatibility)
+  const tokenInfo = await getTokenForOrg();
   if (!tokenInfo) {
     return {
       success: false,
       error: 'Not connected to QuickBooks. Please authorize first.',
       errorCode: 'NO_TOKEN',
+      needsReconnect: true,
     };
   }
 
   const { accessToken, realmId } = tokenInfo;
-  const baseUrl = getBaseUrl();
   const url = `${baseUrl}/v3/company/${realmId}/invoice`;
 
   try {
@@ -132,11 +214,9 @@ export async function createInvoice(
     if (!response.ok) {
       const errorInfo = formatQBOError(data);
 
-      // Log detailed error for debugging
       console.error('QBO Invoice Creation Failed:', {
         status: response.status,
         statusText: response.statusText,
-        organizationId,
         realmId,
         error: errorInfo,
       });
@@ -160,7 +240,6 @@ export async function createInvoice(
     const errorMessage = error instanceof Error ? error.message : 'Failed to create invoice';
 
     console.error('QBO Invoice Creation Exception:', {
-      organizationId,
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
     });
@@ -308,6 +387,7 @@ export async function getInvoice(
 
 /**
  * Query customers (for mapping CustomerRef)
+ * Uses executeWithTokenRefresh for automatic retry on 401
  */
 export async function getCustomers(
   searchTerm?: string,
@@ -316,26 +396,76 @@ export async function getCustomers(
   success: boolean;
   customers?: Array<{ id: string; name: string; email?: string }>;
   error?: string;
+  needsReconnect?: boolean;
 }> {
-  const tokenInfo = await getTokenForOrg(organizationId);
-  if (!tokenInfo) {
-    return {
-      success: false,
-      error: 'Not connected to QuickBooks. Please authorize first.',
-    };
-  }
-
-  const { accessToken, realmId } = tokenInfo;
   const baseUrl = getBaseUrl();
 
   let query = "SELECT * FROM Customer WHERE Active = true";
   if (searchTerm) {
-    // Escape single quotes in search term to prevent injection
     const escapedTerm = searchTerm.replace(/'/g, "\\'");
     query += ` AND DisplayName LIKE '%${escapedTerm}%'`;
   }
   query += " MAXRESULTS 100";
 
+  // Multi-tenant mode: use executeWithTokenRefresh
+  if (organizationId) {
+    type CustomerResponse = QBOQueryResponse<{
+      Customer?: Array<{
+        Id: string;
+        DisplayName: string;
+        PrimaryEmailAddr?: { Address: string }
+      }>
+    }>;
+
+    const result = await executeWithTokenRefresh<CustomerResponse>(
+      organizationId,
+      async (accessToken, realmId) => {
+        const url = `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}`;
+        return fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+      },
+      async (response) => response.json() as Promise<CustomerResponse>
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        needsReconnect: result.needsReconnect,
+      };
+    }
+
+    const data = result.data!;
+    if (data.Fault) {
+      const errorInfo = formatQBOError(data);
+      return { success: false, error: errorInfo.message };
+    }
+
+    const customers = (data.QueryResponse?.Customer || []).map((c) => ({
+      id: c.Id,
+      name: c.DisplayName,
+      email: c.PrimaryEmailAddr?.Address,
+    }));
+
+    return { success: true, customers };
+  }
+
+  // Legacy single-tenant mode
+  const tokenInfo = await getTokenForOrg();
+  if (!tokenInfo) {
+    return {
+      success: false,
+      error: 'Not connected to QuickBooks. Please authorize first.',
+      needsReconnect: true,
+    };
+  }
+
+  const { accessToken, realmId } = tokenInfo;
   const url = `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}`;
 
   try {
@@ -357,10 +487,7 @@ export async function getCustomers(
 
     if (!response.ok) {
       const errorInfo = formatQBOError(data);
-      return {
-        success: false,
-        error: errorInfo.message,
-      };
+      return { success: false, error: errorInfo.message };
     }
 
     const customers = (data.QueryResponse?.Customer || []).map((c) => ({
@@ -369,10 +496,7 @@ export async function getCustomers(
       email: c.PrimaryEmailAddr?.Address,
     }));
 
-    return {
-      success: true,
-      customers,
-    };
+    return { success: true, customers };
   } catch (error) {
     return {
       success: false,
@@ -383,6 +507,7 @@ export async function getCustomers(
 
 /**
  * Query items/products (for mapping ItemRef)
+ * Uses executeWithTokenRefresh for automatic retry on 401
  */
 export async function getItems(
   searchTerm?: string,
@@ -391,26 +516,78 @@ export async function getItems(
   success: boolean;
   items?: Array<{ id: string; name: string; type: string; unitPrice?: number }>;
   error?: string;
+  needsReconnect?: boolean;
 }> {
-  const tokenInfo = await getTokenForOrg(organizationId);
-  if (!tokenInfo) {
-    return {
-      success: false,
-      error: 'Not connected to QuickBooks. Please authorize first.',
-    };
-  }
-
-  const { accessToken, realmId } = tokenInfo;
   const baseUrl = getBaseUrl();
 
   let query = "SELECT * FROM Item WHERE Active = true";
   if (searchTerm) {
-    // Escape single quotes in search term to prevent injection
     const escapedTerm = searchTerm.replace(/'/g, "\\'");
     query += ` AND Name LIKE '%${escapedTerm}%'`;
   }
   query += " MAXRESULTS 100";
 
+  // Multi-tenant mode: use executeWithTokenRefresh
+  if (organizationId) {
+    type ItemResponse = QBOQueryResponse<{
+      Item?: Array<{
+        Id: string;
+        Name: string;
+        Type: string;
+        UnitPrice?: number
+      }>
+    }>;
+
+    const result = await executeWithTokenRefresh<ItemResponse>(
+      organizationId,
+      async (accessToken, realmId) => {
+        const url = `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}`;
+        return fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+      },
+      async (response) => response.json() as Promise<ItemResponse>
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        needsReconnect: result.needsReconnect,
+      };
+    }
+
+    const data = result.data!;
+    if (data.Fault) {
+      const errorInfo = formatQBOError(data);
+      return { success: false, error: errorInfo.message };
+    }
+
+    const items = (data.QueryResponse?.Item || []).map((i) => ({
+      id: i.Id,
+      name: i.Name,
+      type: i.Type,
+      unitPrice: i.UnitPrice,
+    }));
+
+    return { success: true, items };
+  }
+
+  // Legacy single-tenant mode
+  const tokenInfo = await getTokenForOrg();
+  if (!tokenInfo) {
+    return {
+      success: false,
+      error: 'Not connected to QuickBooks. Please authorize first.',
+      needsReconnect: true,
+    };
+  }
+
+  const { accessToken, realmId } = tokenInfo;
   const url = `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}`;
 
   try {
@@ -433,10 +610,7 @@ export async function getItems(
 
     if (!response.ok) {
       const errorInfo = formatQBOError(data);
-      return {
-        success: false,
-        error: errorInfo.message,
-      };
+      return { success: false, error: errorInfo.message };
     }
 
     const items = (data.QueryResponse?.Item || []).map((i) => ({
@@ -446,10 +620,7 @@ export async function getItems(
       unitPrice: i.UnitPrice,
     }));
 
-    return {
-      success: true,
-      items,
-    };
+    return { success: true, items };
   } catch (error) {
     return {
       success: false,
@@ -460,22 +631,68 @@ export async function getItems(
 
 /**
  * Get company info
+ * Uses executeWithTokenRefresh for automatic retry on 401
  */
 export async function getCompanyInfo(organizationId?: string): Promise<{
   success: boolean;
   company?: { id: string; name: string; country: string };
   error?: string;
+  needsReconnect?: boolean;
 }> {
-  const tokenInfo = await getTokenForOrg(organizationId);
+  const baseUrl = getBaseUrl();
+
+  // Multi-tenant mode: use executeWithTokenRefresh
+  if (organizationId) {
+    const result = await executeWithTokenRefresh<QBOCompanyInfoResponse>(
+      organizationId,
+      async (accessToken, realmId) => {
+        const url = `${baseUrl}/v3/company/${realmId}/companyinfo/${realmId}`;
+        return fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+      },
+      async (response) => response.json() as Promise<QBOCompanyInfoResponse>
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        needsReconnect: result.needsReconnect,
+      };
+    }
+
+    const data = result.data!;
+    if (data.Fault) {
+      const errorInfo = formatQBOError(data);
+      return { success: false, error: errorInfo.message };
+    }
+
+    return {
+      success: true,
+      company: {
+        id: data.CompanyInfo?.Id || '',
+        name: data.CompanyInfo?.CompanyName || '',
+        country: data.CompanyInfo?.Country || '',
+      },
+    };
+  }
+
+  // Legacy single-tenant mode
+  const tokenInfo = await getTokenForOrg();
   if (!tokenInfo) {
     return {
       success: false,
       error: 'Not connected to QuickBooks. Please authorize first.',
+      needsReconnect: true,
     };
   }
 
   const { accessToken, realmId } = tokenInfo;
-  const baseUrl = getBaseUrl();
   const url = `${baseUrl}/v3/company/${realmId}/companyinfo/${realmId}`;
 
   try {
@@ -491,10 +708,7 @@ export async function getCompanyInfo(organizationId?: string): Promise<{
 
     if (!response.ok) {
       const errorInfo = formatQBOError(data);
-      return {
-        success: false,
-        error: errorInfo.message,
-      };
+      return { success: false, error: errorInfo.message };
     }
 
     return {
