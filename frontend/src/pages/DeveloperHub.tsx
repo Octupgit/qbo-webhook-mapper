@@ -420,7 +420,88 @@ export default function DeveloperHub({ orgSlug, apiKey, baseUrl }: DeveloperHubP
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Getting Started Sections */}
+            <div id="authentication" className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Authentication</h2>
+              <p className="text-gray-600 mb-4">
+                All API requests require authentication using an API key. Include your API key in the request headers:
+              </p>
+              <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-100 mb-4">
+                <code>X-API-Key: your_api_key_here</code>
+              </div>
+              <p className="text-gray-600 text-sm">
+                You can generate API keys from the Organization Settings page. Keys are scoped to a specific organization.
+              </p>
+            </div>
+
+            <div id="rate-limits" className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Rate Limits</h2>
+              <p className="text-gray-600 mb-4">
+                API requests are rate limited to ensure fair usage and system stability:
+              </p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 text-gray-600">Endpoint Type</th>
+                    <th className="text-left py-2 text-gray-600">Limit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2">Proxy API</td>
+                    <td className="py-2 font-mono">60 requests/minute</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2">Webhook Endpoints</td>
+                    <td className="py-2 font-mono">300 requests/minute</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2">Standard API</td>
+                    <td className="py-2 font-mono">100 requests/15 minutes</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div id="error-codes" className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Error Codes</h2>
+              <p className="text-gray-600 mb-4">
+                The API uses standard HTTP status codes and returns error details in JSON format:
+              </p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 text-gray-600">Code</th>
+                    <th className="text-left py-2 text-gray-600">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2 font-mono">INVALID_API_KEY</td>
+                    <td className="py-2">API key is missing or invalid</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2 font-mono">RATE_LIMITED</td>
+                    <td className="py-2">Too many requests, retry after cooldown</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2 font-mono">QBO_NOT_CONNECTED</td>
+                    <td className="py-2">QuickBooks not connected for this org</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2 font-mono">TOKEN_EXPIRED</td>
+                    <td className="py-2">QBO token expired, reconnect required</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 font-mono">TRANSFORM_FAILED</td>
+                    <td className="py-2">Webhook payload mapping failed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Endpoint Documentation */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {/* Toggle between docs and playground */}
               <div className="flex border-b border-gray-200">
