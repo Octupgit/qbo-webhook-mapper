@@ -45,6 +45,7 @@ function initSampleData() {
     slug: 'default',
     plan_tier: 'enterprise',
     is_active: true,
+    connection_link_enabled: true,
     created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
   };
   organizations.set(defaultOrg.organization_id, defaultOrg);
@@ -56,6 +57,7 @@ function initSampleData() {
     slug: 'acme-corp',
     plan_tier: 'professional',
     is_active: true,
+    connection_link_enabled: true,
     settings: {
       timezone: 'America/New_York',
       notification_email: 'admin@acme-corp.com',
@@ -453,6 +455,7 @@ export async function createOrganization(
     slug,
     plan_tier: planTier,
     is_active: true,
+    connection_link_enabled: true,
     settings,
     created_at: new Date(),
     created_by: createdBy,
@@ -472,7 +475,7 @@ export async function getOrganizationById(orgId: string): Promise<Organization |
 }
 
 export async function getOrganizationBySlug(slug: string): Promise<Organization | null> {
-  return Array.from(organizations.values()).find(o => o.slug === slug && o.is_active) || null;
+  return Array.from(organizations.values()).find(o => o.slug === slug) || null;
 }
 
 export async function updateOrganization(orgId: string, updates: Partial<Organization>): Promise<Organization | null> {

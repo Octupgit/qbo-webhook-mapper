@@ -167,9 +167,10 @@ export async function getOrgSources(clientSlug: string): Promise<WebhookSource[]
 // CLIENT MAPPING OVERRIDES
 // =============================================================================
 
-export async function getClientOverrides(orgId: string): Promise<ClientMappingOverride[]> {
+export async function getClientOverrides(orgId: string, sourceId?: string): Promise<ClientMappingOverride[]> {
+  const params = sourceId ? `?sourceId=${sourceId}` : '';
   const response = await apiClient.get<ApiResponse<ClientMappingOverride[]>>(
-    `/admin/organizations/${orgId}/overrides`
+    `/admin/organizations/${orgId}/mappings${params}`
   );
   return response.data.data || [];
 }
@@ -187,21 +188,32 @@ export async function createClientOverride(
   }
 ): Promise<ClientMappingOverride> {
   const response = await apiClient.post<ApiResponse<ClientMappingOverride>>(
-    `/admin/organizations/${orgId}/overrides`,
+    `/admin/organizations/${orgId}/mappings`,
     data
   );
   return response.data.data!;
 }
 
 export async function updateClientOverride(
+  orgId: string,
   overrideId: string,
   data: Partial<ClientMappingOverride>
 ): Promise<void> {
-  await apiClient.put(`/admin/overrides/${overrideId}`, data);
+  await apiClient.put(`/admin/organizations/${orgId}/mappings/${overrideId}`, data);
 }
 
-export async function deleteClientOverride(overrideId: string): Promise<void> {
-  await apiClient.delete(`/admin/overrides/${overrideId}`);
+export async function deleteClientOverride(orgId: string, overrideId: string): Promise<void> {
+  await apiClient.delete(`/admin/organizations/${orgId}/mappings/${overrideId}`);
+}
+
+/**
+ * Get latest webhook payload for a source
+ */
+export async function getLatestPayload(orgId: string, sourceId: string): Promise<WebhookPayload | null> {
+  const response = await apiClient.get<ApiResponse<WebhookPayload | null>>(
+    `/admin/organizations/${orgId}/sources/${sourceId}/latest-payload`
+  );
+  return response.data.data || null;
 }
 
 // =============================================================================

@@ -29,6 +29,7 @@ export interface Organization {
   slug: string;                      // URL-safe identifier (e.g., "acme-corp")
   plan_tier: PlanTier;
   is_active: boolean;
+  connection_link_enabled: boolean;  // Whether public connect page is accessible
   settings?: OrganizationSettings;
   created_at: Date;
   updated_at?: Date;
@@ -47,6 +48,7 @@ export interface UpdateOrganizationInput {
   slug?: string;
   plan_tier?: PlanTier;
   is_active?: boolean;
+  connection_link_enabled?: boolean;
   settings?: OrganizationSettings;
 }
 

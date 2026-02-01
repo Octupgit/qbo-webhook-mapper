@@ -30,20 +30,27 @@ const FRONTEND_BASE_URL = config.frontendUrl;
  *
  * Get OAuth authorization URL for a specific organization.
  * Redirects directly to QBO or returns URL based on ?redirect param.
+ *
+ * Query params:
+ * - redirect: 'false' to return URL instead of redirecting
+ * - source: 'public' for client-facing connect, 'admin' for admin dashboard
  */
 router.get('/connect/:clientSlug', tenantContext, async (req: Request, res: Response) => {
   try {
     const { organization_id, organization_slug } = req.tenant!;
     const shouldRedirect = req.query.redirect !== 'false';
+    const source = req.query.source === 'public' ? 'public' : 'admin';
 
     // Generate authorization URL with org context in state
-    const result = await getAuthorizationUrl(organization_id);
+    const result = await getAuthorizationUrl(organization_id, source);
 
     if (!result.success) {
+      const errorPath = source === 'public'
+        ? `/connect/${organization_slug}?error=${encodeURIComponent(result.error!)}`
+        : `/org/${organization_slug}/settings?error=${encodeURIComponent(result.error!)}`;
+
       if (shouldRedirect) {
-        return res.redirect(
-          `${FRONTEND_BASE_URL}/org/${organization_slug}/settings?error=${encodeURIComponent(result.error!)}`
-        );
+        return res.redirect(`${FRONTEND_BASE_URL}${errorPath}`);
       }
       return res.status(400).json({
         success: false,
@@ -119,17 +126,22 @@ router.get('/oauth/callback', async (req: Request, res: Response) => {
       organizationId: result.organizationId,
       slug: result.slug,
       realmId: result.realmId,
+      source: result.source,
       error: result.error
     });
 
+    // Determine redirect path based on source (public vs admin)
+    const isPublic = result.source === 'public';
+
     if (!result.success) {
       console.error('OAuth callback failed:', result.error);
-      return res.redirect(
-        `${FRONTEND_BASE_URL}/settings?error=${encodeURIComponent(result.error!)}`
-      );
+      const errorPath = isPublic && result.slug
+        ? `/connect/${result.slug}?error=${encodeURIComponent(result.error!)}`
+        : `/settings?error=${encodeURIComponent(result.error!)}`;
+      return res.redirect(`${FRONTEND_BASE_URL}${errorPath}`);
     }
 
-    // Success - redirect to organization-specific settings page
+    // Success - redirect based on source
     const successParams = new URLSearchParams({
       connected: 'true',
       realmId: result.realmId!,
@@ -139,10 +151,15 @@ router.get('/oauth/callback', async (req: Request, res: Response) => {
       successParams.set('companyName', result.companyName);
     }
 
-    // Use the organization slug from the callback result for org-specific redirect
-    const redirectPath = result.slug
-      ? `/org/${result.slug}/settings`
-      : '/settings';
+    // Public connects go to /connect/:slug, admin connects go to /org/:slug/settings
+    let redirectPath: string;
+    if (isPublic && result.slug) {
+      redirectPath = `/connect/${result.slug}`;
+    } else if (result.slug) {
+      redirectPath = `/org/${result.slug}/settings`;
+    } else {
+      redirectPath = '/settings';
+    }
 
     return res.redirect(
       `${FRONTEND_BASE_URL}${redirectPath}?${successParams.toString()}`

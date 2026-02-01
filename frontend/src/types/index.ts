@@ -111,6 +111,7 @@ export interface Organization {
   slug: string;
   plan_tier: 'free' | 'starter' | 'professional' | 'enterprise';
   is_active: boolean;
+  connection_link_enabled: boolean;
   settings?: OrganizationSettings;
   created_at: string;
   updated_at?: string;

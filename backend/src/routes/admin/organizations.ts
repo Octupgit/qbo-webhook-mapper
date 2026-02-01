@@ -14,6 +14,11 @@ import {
   getSources,
   getSyncLogs,
   getActiveToken,
+  getLatestPayload,
+  getClientOverrides,
+  createClientOverride,
+  updateClientOverride,
+  deleteClientOverride,
 } from '../../services/dataService';
 
 const router = Router();
@@ -217,6 +222,193 @@ router.get('/:orgId/stats', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to get organization statistics',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/organizations/:orgId/sources/:sourceId/latest-payload
+ * Get the latest webhook payload for a source
+ */
+router.get('/:orgId/sources/:sourceId/latest-payload', async (req: Request, res: Response) => {
+  try {
+    const { orgId, sourceId } = req.params;
+
+    const organization = await getOrganizationById(orgId);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        error: 'Organization not found',
+      });
+    }
+
+    const payload = await getLatestPayload(orgId, sourceId);
+
+    if (!payload) {
+      return res.json({
+        success: true,
+        data: null,
+        message: 'No payloads received yet for this source',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        payload_id: payload.payload_id,
+        raw_payload: payload.raw_payload,
+        received_at: payload.received_at,
+        processed: payload.processed,
+      },
+    });
+  } catch (error) {
+    console.error('Get latest payload error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to get latest payload',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/organizations/:orgId/mappings
+ * Get all client mapping overrides for an organization
+ */
+router.get('/:orgId/mappings', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { sourceId } = req.query;
+
+    const organization = await getOrganizationById(orgId);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        error: 'Organization not found',
+      });
+    }
+
+    const overrides = await getClientOverrides(orgId, sourceId as string | undefined);
+
+    return res.json({
+      success: true,
+      data: overrides,
+    });
+  } catch (error) {
+    console.error('Get mappings error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to get mappings',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/organizations/:orgId/mappings
+ * Create a new client mapping override
+ */
+router.post('/:orgId/mappings', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { name, field_mappings, source_id, template_id, description, priority, static_values } = req.body;
+
+    const organization = await getOrganizationById(orgId);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        error: 'Organization not found',
+      });
+    }
+
+    if (!name || !field_mappings || !Array.isArray(field_mappings)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and field_mappings are required',
+      });
+    }
+
+    const override = await createClientOverride(
+      orgId,
+      name,
+      field_mappings,
+      source_id,
+      template_id,
+      description,
+      priority,
+      static_values
+    );
+
+    return res.status(201).json({
+      success: true,
+      data: override,
+    });
+  } catch (error) {
+    console.error('Create mapping error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create mapping',
+    });
+  }
+});
+
+/**
+ * PUT /api/admin/organizations/:orgId/mappings/:overrideId
+ * Update an existing client mapping override
+ */
+router.put('/:orgId/mappings/:overrideId', async (req: Request, res: Response) => {
+  try {
+    const { orgId, overrideId } = req.params;
+    const updates = req.body;
+
+    const organization = await getOrganizationById(orgId);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        error: 'Organization not found',
+      });
+    }
+
+    await updateClientOverride(overrideId, updates);
+
+    return res.json({
+      success: true,
+      message: 'Mapping updated successfully',
+    });
+  } catch (error) {
+    console.error('Update mapping error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to update mapping',
+    });
+  }
+});
+
+/**
+ * DELETE /api/admin/organizations/:orgId/mappings/:overrideId
+ * Delete a client mapping override
+ */
+router.delete('/:orgId/mappings/:overrideId', async (req: Request, res: Response) => {
+  try {
+    const { orgId, overrideId } = req.params;
+
+    const organization = await getOrganizationById(orgId);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        error: 'Organization not found',
+      });
+    }
+
+    await deleteClientOverride(overrideId);
+
+    return res.json({
+      success: true,
+      message: 'Mapping deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete mapping error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to delete mapping',
     });
   }
 });

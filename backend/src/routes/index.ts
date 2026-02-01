@@ -12,6 +12,9 @@ import v1Router from './v1';
 // Admin Routes
 import adminRouter from './admin';
 
+// Public Routes (unauthenticated)
+import publicRouter from './public';
+
 const router = Router();
 
 // Health check
@@ -24,6 +27,12 @@ router.get('/health', (req, res) => {
     multiTenant: true,
   });
 });
+
+// =============================================================================
+// PUBLIC ROUTES (Unauthenticated)
+// =============================================================================
+// Minimal public endpoints for client-facing features
+router.use('/public', publicRouter);
 
 // =============================================================================
 // ADMIN ROUTES

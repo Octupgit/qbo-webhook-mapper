@@ -12,6 +12,7 @@ import OrgDetailPage from './pages/admin/OrgDetailPage';
 
 // Client Pages
 import ClientOnboarding from './pages/ClientOnboarding';
+import PublicConnectPage from './pages/PublicConnectPage';
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
         {/* Client-facing routes (no layout) */}
         <Route path="/org/:clientSlug" element={<ClientOnboarding />} />
         <Route path="/org/:clientSlug/settings" element={<ClientOnboarding />} />
-        <Route path="/connect/:clientSlug" element={<ClientOnboarding />} />
+        <Route path="/connect/:slug" element={<PublicConnectPage />} />
 
         {/* Admin routes with layout */}
         <Route

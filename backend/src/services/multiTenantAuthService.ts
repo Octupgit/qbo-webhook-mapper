@@ -110,10 +110,11 @@ function verifyStateSignature(data: string, signature: string): boolean {
 
 /**
  * Encode OAuth state with organization info and signature
+ * @param source - 'public' for client-facing connect, 'admin' for admin dashboard
  */
-function encodeOAuthState(organizationId: string, slug: string): string {
+function encodeOAuthState(organizationId: string, slug: string, source: 'public' | 'admin' = 'admin'): string {
   const timestamp = Date.now();
-  const data = JSON.stringify({ org_id: organizationId, slug, timestamp });
+  const data = JSON.stringify({ org_id: organizationId, slug, timestamp, source });
   const signature = signState(data);
   const state = Buffer.from(JSON.stringify({ data, signature })).toString('base64');
   return state;
@@ -126,6 +127,7 @@ function decodeOAuthState(state: string): {
   valid: boolean;
   organizationId?: string;
   slug?: string;
+  source?: 'public' | 'admin';
   error?: string;
 } {
   try {
@@ -151,6 +153,7 @@ function decodeOAuthState(state: string): {
       valid: true,
       organizationId: parsed.org_id,
       slug: parsed.slug,
+      source: parsed.source || 'admin',
     };
   } catch (error) {
     // Log specific error for debugging
@@ -161,13 +164,17 @@ function decodeOAuthState(state: string): {
 
 /**
  * Get authorization URL for a specific organization
+ * @param source - 'public' for client-facing connect page, 'admin' for admin dashboard
  */
-export async function getAuthorizationUrl(organizationIdOrSlug: string): Promise<{
+export async function getAuthorizationUrl(
+  organizationIdOrSlug: string,
+  source: 'public' | 'admin' = 'admin'
+): Promise<{
   success: boolean;
   authUrl?: string;
   error?: string;
 }> {
-  console.log('[OAuth] getAuthorizationUrl called for:', organizationIdOrSlug);
+  console.log('[OAuth] getAuthorizationUrl called for:', organizationIdOrSlug, 'source:', source);
 
   // Try to find organization by ID first, then by slug
   let org: Organization | null = await getOrganizationById(organizationIdOrSlug);
@@ -194,8 +201,8 @@ export async function getAuthorizationUrl(organizationIdOrSlug: string): Promise
     };
   }
 
-  // Generate signed state parameter
-  const state = encodeOAuthState(org.organization_id, org.slug);
+  // Generate signed state parameter with source
+  const state = encodeOAuthState(org.organization_id, org.slug, source);
 
   // Create fresh OAuth client for this request
   const oauthClient = createOAuthClient();
@@ -220,6 +227,7 @@ export async function handleCallback(url: string): Promise<{
   slug?: string;
   realmId?: string;
   companyName?: string;
+  source?: 'public' | 'admin';
   error?: string;
 }> {
   console.log('[MultiTenantAuth] handleCallback called');
@@ -245,6 +253,7 @@ export async function handleCallback(url: string): Promise<{
       valid: stateResult.valid,
       organizationId: stateResult.organizationId,
       slug: stateResult.slug,
+      source: stateResult.source,
       error: stateResult.error
     });
 
@@ -255,6 +264,7 @@ export async function handleCallback(url: string): Promise<{
 
     const organizationId = stateResult.organizationId!;
     const slug = stateResult.slug;
+    const source = stateResult.source;
 
     console.log('[MultiTenantAuth] Extracted org from state:', { organizationId, slug });
 
@@ -315,6 +325,7 @@ export async function handleCallback(url: string): Promise<{
       slug,
       realmId,
       companyName,
+      source,
     };
   } catch (error) {
     console.error('OAuth callback error:', error);
