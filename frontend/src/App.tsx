@@ -19,6 +19,7 @@ export default function App() {
       <Routes>
         {/* Client-facing routes (no layout) */}
         <Route path="/org/:clientSlug" element={<ClientOnboarding />} />
+        <Route path="/org/:clientSlug/settings" element={<ClientOnboarding />} />
         <Route path="/connect/:clientSlug" element={<ClientOnboarding />} />
 
         {/* Admin routes with layout */}
