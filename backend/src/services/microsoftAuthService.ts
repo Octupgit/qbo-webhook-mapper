@@ -17,7 +17,7 @@ import { AdminUser } from '../types';
 
 // Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'admin-jwt-secret-change-in-production';
-const JWT_EXPIRATION = '24h';
+const JWT_EXPIRATION = '12h'; // 12 hours for admin sessions
 const ADMIN_BASE_URL = process.env.ADMIN_BASE_URL || 'http://localhost:3000';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 

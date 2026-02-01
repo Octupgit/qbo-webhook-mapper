@@ -2,6 +2,7 @@
  * Admin Authentication Middleware
  *
  * Verifies JWT tokens for admin dashboard routes.
+ * Supports both HttpOnly cookies (preferred) and Authorization header.
  * Uses the adminAuthService for token verification.
  */
 
@@ -11,10 +12,27 @@ import { AdminContext, AdminRole } from '../types';
 
 // Note: Express Request extension is declared in types/multiTenant.ts
 
+// Cookie configuration
+export const AUTH_COOKIE_NAME = 'admin_session';
+export const AUTH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: 12 * 60 * 60 * 1000, // 12 hours
+  path: '/',
+};
+
 /**
- * Extract JWT from Authorization header
+ * Extract JWT from cookie first, then Authorization header
  */
 function extractToken(req: Request): string | null {
+  // 1. Check HttpOnly cookie first (preferred for persistence)
+  const cookieToken = req.cookies?.[AUTH_COOKIE_NAME];
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  // 2. Fall back to Authorization header
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {

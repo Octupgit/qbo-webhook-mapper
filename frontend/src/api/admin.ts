@@ -394,3 +394,74 @@ export async function getRecentSyncFailures(limit: number = 20): Promise<RecentS
   );
   return response.data.data || [];
 }
+
+// =============================================================================
+// AUTHENTICATION
+// =============================================================================
+
+export interface AdminUser {
+  user_id: string;
+  email: string;
+  name?: string;
+  role: 'admin' | 'super_admin';
+  is_active: boolean;
+  last_login_at?: string;
+  created_at: string;
+}
+
+/**
+ * Get current authenticated admin user
+ * Uses session cookie automatically
+ */
+export async function getCurrentUser(): Promise<AdminUser | null> {
+  try {
+    const response = await apiClient.get<ApiResponse<AdminUser>>('/admin/auth/me');
+    return response.data.data || null;
+  } catch (error) {
+    // Not authenticated
+    return null;
+  }
+}
+
+/**
+ * Logout - clears session cookie
+ */
+export async function logout(): Promise<void> {
+  await apiClient.post('/admin/auth/logout');
+}
+
+/**
+ * Refresh session (heartbeat)
+ * Call periodically to keep session alive
+ */
+export async function refreshSession(): Promise<boolean> {
+  try {
+    await apiClient.post('/admin/auth/refresh');
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Get auth status (what providers are available)
+ */
+export async function getAuthStatus(): Promise<{
+  microsoft: { configured: boolean };
+  magicLink: { enabled: boolean };
+}> {
+  const response = await apiClient.get<ApiResponse<{
+    microsoft: { configured: boolean };
+    magicLink: { enabled: boolean };
+  }>>('/admin/auth/status');
+  return response.data.data!;
+}
+
+/**
+ * Get Microsoft SSO login URL
+ * Redirects browser to Microsoft for authentication
+ */
+export function getMicrosoftLoginUrl(): string {
+  const baseUrl = import.meta.env.VITE_API_URL || '/api';
+  return `${baseUrl}/admin/auth/microsoft`;
+}

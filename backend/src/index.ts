@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import config from './config';
 import routes from './routes';
@@ -47,6 +48,7 @@ app.use(cors({
   origin: process.env.NODE_ENV === 'production' ? true : config.frontendUrl,
   credentials: true,
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
