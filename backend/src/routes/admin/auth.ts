@@ -30,6 +30,7 @@ const router = Router();
  * Helper to set auth cookie
  */
 function setAuthCookie(res: Response, token: string): void {
+  console.log('[Auth] Setting cookie with options:', AUTH_COOKIE_OPTIONS);
   res.cookie(AUTH_COOKIE_NAME, token, AUTH_COOKIE_OPTIONS);
 }
 
@@ -49,6 +50,8 @@ function clearAuthCookie(res: Response): void {
  * Get authentication provider status
  */
 router.get('/status', (req: Request, res: Response) => {
+  console.log('[Auth/Status] Cookies received:', req.cookies);
+  console.log('[Auth/Status] Cookie header:', req.headers.cookie);
   const microsoftStatus = getMicrosoftSSOStatus();
 
   return res.json({

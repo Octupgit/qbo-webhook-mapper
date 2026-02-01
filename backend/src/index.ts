@@ -43,9 +43,17 @@ process.on('uncaughtException', (error: Error) => {
 
 const app = express();
 
-// Middleware - In production, allow same-origin requests
+// CORS configuration
+// In production with separate Cloud Run services, we must explicitly set the origin
+// for credentials (cookies) to work properly with cross-origin requests
+const corsOrigin = process.env.NODE_ENV === 'production'
+  ? (process.env.FRONTEND_URL || true) // Use FRONTEND_URL if set, otherwise reflect origin
+  : config.frontendUrl;
+
+console.log(`[CORS] Origin configured: ${corsOrigin}`);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? true : config.frontendUrl,
+  origin: corsOrigin,
   credentials: true,
 }));
 app.use(cookieParser());

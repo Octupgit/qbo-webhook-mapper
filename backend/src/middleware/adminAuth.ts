@@ -14,10 +14,17 @@ import { AdminContext, AdminRole } from '../types';
 
 // Cookie configuration
 export const AUTH_COOKIE_NAME = 'admin_session';
+
+// In production with separate frontend/backend domains (Cloud Run), we need:
+// - sameSite: 'none' to allow cross-origin cookies
+// - secure: true (required when sameSite is 'none')
+// In development (localhost), we use 'lax' for simpler local testing
+const isProduction = process.env.NODE_ENV === 'production';
+
 export const AUTH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  secure: isProduction, // Must be true for sameSite: 'none'
+  sameSite: isProduction ? 'none' as const : 'lax' as const,
   maxAge: 12 * 60 * 60 * 1000, // 12 hours
   path: '/',
 };
@@ -64,6 +71,10 @@ export async function adminAuth(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Debug logging for cookie troubleshooting
+    console.log('[AdminAuth] Cookies received:', req.cookies);
+    console.log('[AdminAuth] Cookie header:', req.headers.cookie);
+
     const token = extractToken(req);
 
     if (!token) {
