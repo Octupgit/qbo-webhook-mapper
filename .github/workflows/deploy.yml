@@ -1,94 +1,70 @@
-name: Build & Deploy
+name: Deploy to Cloud Run
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    branches:
+      - main
 
 env:
-  NODE_VERSION: '18'
+  PROJECT_ID: octup-testing
+  REGION: us-central1
+  BACKEND_SERVICE: qbo-webhook-mapper-backend
+  FRONTEND_SERVICE: qbo-webhook-mapper-frontend
 
 jobs:
-  # Build and test backend
-  build-backend:
+  deploy-backend:
+    name: Deploy Backend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type check
-        run: npm run build
-
-      - name: Run tests
-        run: npm test --if-present
-        env:
-          USE_MOCK_DATA: 'true'
-          JWT_SECRET: 'test-secret'
-          ENCRYPTION_KEY: 'test-encryption-key-32-chars-ok'
-
-  # Build frontend
-  build-frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          project_id: ${{ env.PROJECT_ID }}
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Deploy Backend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE }} \
+            --source ./backend \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --clear-base-image \
+            --quiet
 
-      - name: Build
-        run: npm run build
-        env:
-          VITE_API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.example.com' }}
-
-  # Deploy to Railway (only on push to main)
-  deploy-railway:
-    needs: [build-backend, build-frontend]
+  deploy-frontend:
+    name: Deploy Frontend
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: deploy-backend
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Deploy to Railway
-        run: railway up --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
 
-  # Alternative: Deploy to Render (uncomment if using Render instead)
-  # deploy-render:
-  #   needs: [build-backend, build-frontend]
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-  #
-  #   steps:
-  #     - name: Trigger Render Deploy
-  #       run: |
-  #         curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
+            --source ./frontend \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --clear-base-image \
+            --quiet
