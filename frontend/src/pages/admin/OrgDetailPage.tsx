@@ -827,7 +827,8 @@ function MappingsTab({
             <select
               value={selectedSourceId || ''}
               onChange={(e) => onSelectSource(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
+              className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              style={{ backgroundColor: '#ffffff', zIndex: 50 }}
             >
               {sources.map(source => (
                 <option key={source.source_id} value={source.source_id}>
@@ -900,7 +901,8 @@ function MappingsTab({
                   <select
                     value={currentMapping?.sourceField || ''}
                     onChange={(e) => handleMappingChange(field.path, e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    style={{ backgroundColor: '#ffffff' }}
                   >
                     <option value="">-- Select source field --</option>
                     {payloadPaths.map(path => (

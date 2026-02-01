@@ -6,6 +6,75 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* =============================================================================
+   DROPDOWN & SELECT VISIBILITY FIX
+   Ensures all dropdowns have solid backgrounds and proper z-index
+   ============================================================================= */
+
+/* All select elements */
+select,
+[role="listbox"],
+[role="combobox"],
+[data-radix-popper-content-wrapper] {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Dropdown menus and popovers */
+[role="menu"],
+[role="dialog"],
+.popover-content,
+.dropdown-content,
+.menu-content {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  z-index: 9999 !important;
+}
+
+/* Select dropdown options */
+select option {
+  background-color: #ffffff;
+  color: #1f2937;
+  padding: 8px 12px;
+}
+
+select option:hover,
+select option:focus {
+  background-color: #f3f4f6;
+}
+
+/* Custom dropdown styling for consistency */
+.dropdown-menu {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 9999;
+  position: absolute;
+}
+
+/* User profile dropdown */
+.user-menu-dropdown {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  z-index: 9999;
+}
+
+/* Ensure dropdowns appear above table headers and charts */
+.relative {
+  z-index: auto;
+}
+
+select:focus {
+  outline: none;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

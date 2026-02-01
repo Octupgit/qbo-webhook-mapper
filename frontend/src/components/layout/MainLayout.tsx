@@ -112,9 +112,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </nav>
 
         {/* User info & Logout */}
-        <div className="mt-auto border-t border-gray-200 p-4">
+        <div className="mt-auto border-t border-gray-200 p-4 bg-white">
           {user && (
-            <div className="mb-3">
+            <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
               <p className="text-sm font-medium text-gray-900 truncate">
                 {user.name || user.email}
               </p>
@@ -125,7 +125,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           )}
           <button
             onClick={handleLogout}
-            className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 hover:text-gray-900 hover:shadow transition-all"
           >
             <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3 text-gray-400" />
             Sign out
