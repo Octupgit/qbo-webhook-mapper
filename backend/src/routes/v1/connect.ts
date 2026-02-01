@@ -12,6 +12,7 @@
 
 import { Router, Request, Response } from 'express';
 import { tenantContext } from '../../middleware/tenantContext';
+import config from '../../config';
 import {
   getAuthorizationUrl,
   handleCallback,
@@ -21,8 +22,8 @@ import {
 
 const router = Router();
 
-// Frontend URLs for redirects
-const FRONTEND_BASE_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+// Frontend URLs for redirects - in production, empty string means same origin
+const FRONTEND_BASE_URL = config.frontendUrl;
 
 /**
  * GET /api/v1/connect/:clientSlug
