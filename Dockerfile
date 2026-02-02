@@ -16,8 +16,16 @@ RUN npm install
 RUN cd backend && npm install
 RUN cd frontend && npm install
 
-# Copy source code
-COPY . .
+# Copy source code (explicitly to avoid .git and other problematic files)
+COPY backend/src ./backend/src
+COPY backend/tsconfig.json ./backend/
+COPY frontend/src ./frontend/src
+COPY frontend/public ./frontend/public
+COPY frontend/index.html ./frontend/
+COPY frontend/tsconfig*.json ./frontend/
+COPY frontend/vite.config.ts ./frontend/
+COPY frontend/postcss.config.js ./frontend/
+COPY frontend/tailwind.config.js ./frontend/
 
 # Build frontend
 RUN cd frontend && npm run build
