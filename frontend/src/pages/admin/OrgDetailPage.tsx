@@ -389,7 +389,7 @@ export default function OrgDetailPage() {
         {activeTab === 'developer' && organization && (
           <DeveloperHub
             orgSlug={organization.slug}
-            baseUrl={import.meta.env.VITE_API_URL || ''}
+            baseUrl={import.meta.env.VITE_API_URL || `${window.location.origin}/api`}
           />
         )}
 
