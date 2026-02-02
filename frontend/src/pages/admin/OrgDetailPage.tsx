@@ -1049,7 +1049,7 @@ function VisualMapperTab({
       if (search) params.append('search', search);
 
       const response = await fetch(
-        `${baseUrl}/api/v1/org/${organization.slug}/proxy/data?${params}`,
+        `${baseUrl}/v1/org/${organization.slug}/proxy/data?${params}`,
         { credentials: 'include' }
       );
 
@@ -1073,7 +1073,7 @@ function VisualMapperTab({
       if (search) params.append('search', search);
 
       const response = await fetch(
-        `${baseUrl}/api/v1/org/${organization.slug}/proxy/data?${params}`,
+        `${baseUrl}/v1/org/${organization.slug}/proxy/data?${params}`,
         { credentials: 'include' }
       );
 
@@ -1199,7 +1199,7 @@ function DataTab({
       if (searchQuery) params.append('search', searchQuery);
 
       const response = await fetch(
-        `${baseUrl}/api/v1/org/${organizationSlug}/proxy/data?${params}`,
+        `${baseUrl}/v1/org/${organizationSlug}/proxy/data?${params}`,
         { credentials: 'include' }
       );
 
