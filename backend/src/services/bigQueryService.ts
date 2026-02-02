@@ -51,6 +51,38 @@ function tablePath(tableName: string): string {
   return `\`${config.bigquery.projectId}.${config.bigquery.dataset}.${tableName}\``;
 }
 
+// Helper to parse BigQuery timestamp format
+function parseTimestamp(value: unknown): Date | undefined {
+  if (!value) return undefined;
+  // BigQuery can return timestamps as {value: "2024-01-01T00:00:00Z"} or as plain strings
+  if (typeof value === 'object' && value !== null && 'value' in value) {
+    return new Date((value as { value: string }).value);
+  }
+  if (typeof value === 'string') {
+    return new Date(value);
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  return undefined;
+}
+
+// Helper to parse organization from BigQuery row
+function parseOrganization(row: Record<string, unknown>): Organization {
+  return {
+    organization_id: row.organization_id as string,
+    name: row.name as string,
+    slug: row.slug as string,
+    plan_tier: (row.plan_tier as Organization['plan_tier']) || 'free',
+    is_active: row.is_active as boolean,
+    connection_link_enabled: row.connection_link_enabled !== false, // Default to true
+    settings: row.settings ? (typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings) : undefined,
+    created_at: parseTimestamp(row.created_at) || new Date(),
+    updated_at: parseTimestamp(row.updated_at),
+    created_by: row.created_by as string | undefined,
+  };
+}
+
 // ============================================================
 // ORGANIZATIONS
 // ============================================================
@@ -97,7 +129,8 @@ export async function getOrganizations(): Promise<Organization[]> {
     WHERE is_active = TRUE
     ORDER BY created_at DESC
   `;
-  return runQuery<Organization>(query);
+  const rows = await runQuery<Record<string, unknown>>(query);
+  return rows.map(parseOrganization);
 }
 
 export async function getOrganizationById(orgId: string): Promise<Organization | null> {
@@ -105,8 +138,8 @@ export async function getOrganizationById(orgId: string): Promise<Organization |
     SELECT * FROM ${tablePath(TABLES.ORGANIZATIONS)}
     WHERE organization_id = @orgId
   `;
-  const rows = await runQuery<Organization>(query, { orgId });
-  return rows[0] || null;
+  const rows = await runQuery<Record<string, unknown>>(query, { orgId });
+  return rows[0] ? parseOrganization(rows[0]) : null;
 }
 
 export async function getOrganizationBySlug(slug: string): Promise<Organization | null> {
@@ -114,8 +147,8 @@ export async function getOrganizationBySlug(slug: string): Promise<Organization 
     SELECT * FROM ${tablePath(TABLES.ORGANIZATIONS)}
     WHERE slug = @slug AND is_active = TRUE
   `;
-  const rows = await runQuery<Organization>(query, { slug });
-  return rows[0] || null;
+  const rows = await runQuery<Record<string, unknown>>(query, { slug });
+  return rows[0] ? parseOrganization(rows[0]) : null;
 }
 
 export async function updateOrganization(orgId: string, updates: Partial<Organization>): Promise<Organization | null> {
