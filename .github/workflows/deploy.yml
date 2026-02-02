@@ -120,7 +120,31 @@ jobs:
         run: |
           # Use Cloud Build with substitutions to pass VITE_API_URL at build time
           cd frontend
-          gcloud builds submit \
+
+          # Submit build asynchronously to avoid log streaming issues
+          BUILD_ID=$(gcloud builds submit \
             --config=cloudbuild.yaml \
             --substitutions="_SERVICE_NAME=${{ env.FRONTEND_SERVICE }},_REGION=${{ env.REGION }},_VITE_API_URL=${{ steps.backend-url.outputs.url }}/api" \
-            --quiet
+            --async \
+            --format='value(id)')
+
+          echo "Build started: $BUILD_ID"
+
+          # Wait for build to complete (poll every 30 seconds, max 15 minutes)
+          for i in {1..30}; do
+            STATUS=$(gcloud builds describe $BUILD_ID --format='value(status)')
+            echo "Build status: $STATUS"
+
+            if [ "$STATUS" = "SUCCESS" ]; then
+              echo "Build completed successfully!"
+              exit 0
+            elif [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "CANCELLED" ] || [ "$STATUS" = "TIMEOUT" ]; then
+              echo "Build failed with status: $STATUS"
+              exit 1
+            fi
+
+            sleep 30
+          done
+
+          echo "Build timed out waiting for completion"
+          exit 1
