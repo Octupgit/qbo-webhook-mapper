@@ -9,9 +9,11 @@
 import { DEFAULT_ORGANIZATION_ID } from '../types';
 
 // Check if we should use mock data
-const useMock = !process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-                process.env.GOOGLE_APPLICATION_CREDENTIALS.includes('/path/to/') ||
-                process.env.USE_MOCK_DATA === 'true';
+// In Cloud Run, credentials are provided via metadata server (no env var needed)
+// Only use mock if explicitly requested OR in local dev without credentials
+const useMock = process.env.USE_MOCK_DATA === 'true' ||
+                (process.env.NODE_ENV !== 'production' &&
+                 !process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 let dataService: typeof import('./bigQueryService') | typeof import('./mockDataService');
 
