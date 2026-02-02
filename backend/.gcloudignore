@@ -1,0 +1,33 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore
+
+# Node modules (problematic timestamps)
+node_modules/
+**/node_modules/
+
+# Build output (will be rebuilt)
+dist/
+**/dist/
+
+# Environment files
+.env
+.env.*
+**/.env
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+coverage/
+**/*.test.ts
+**/*.spec.ts
+__tests__/
