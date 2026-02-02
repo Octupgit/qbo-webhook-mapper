@@ -62,18 +62,11 @@ export interface AdminUser {
   user_id: string;
   email: string;
   name?: string;
+  password_hash: string;
+  must_change_password: boolean;
   role: AdminRole;
   is_active: boolean;
   last_login_at?: Date;
-  created_at: Date;
-}
-
-export interface MagicLink {
-  link_id: string;
-  email: string;
-  token_hash: string;
-  expires_at: Date;
-  used_at?: Date;
   created_at: Date;
 }
 

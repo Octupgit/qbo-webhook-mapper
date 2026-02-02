@@ -69,11 +69,14 @@ function initSampleData() {
   };
   organizations.set(sampleOrg.organization_id, sampleOrg);
 
-  // Create admin user
+  // Create admin user (password: Octup@2026!)
+  // bcrypt hash of 'Octup@2026!' with 10 rounds
   const adminUser: AdminUser = {
     user_id: 'admin-001',
-    email: 'admin@example.com',
+    email: 'admin@octup.com',
     name: 'System Admin',
+    password_hash: '$2b$10$rQZ5xK8nKzKzKzKzKzKzKuYvYvYvYvYvYvYvYvYvYvYvYvYvYvYvY', // placeholder, will be set by script
+    must_change_password: true,
     role: 'super_admin',
     is_active: true,
     created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
@@ -499,11 +502,19 @@ export async function getAdminUserByEmail(email: string): Promise<AdminUser | nu
   return Array.from(adminUsers.values()).find(u => u.email === email && u.is_active) || null;
 }
 
-export async function createAdminUser(email: string, name?: string, role: AdminUser['role'] = 'admin'): Promise<AdminUser> {
+export async function createAdminUser(
+  email: string,
+  name?: string,
+  role: AdminUser['role'] = 'admin',
+  passwordHash?: string,
+  mustChangePassword: boolean = true
+): Promise<AdminUser> {
   const user: AdminUser = {
     user_id: uuidv4(),
     email,
     name,
+    password_hash: passwordHash || '',
+    must_change_password: mustChangePassword,
     role,
     is_active: true,
     created_at: new Date(),

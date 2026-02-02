@@ -15,8 +15,7 @@ import OrganizationsPage from './pages/admin/OrganizationsPage';
 import OrgDetailPage from './pages/admin/OrgDetailPage';
 import SystemDashboard from './pages/admin/SystemDashboard';
 import LoginPage from './pages/admin/LoginPage';
-import AuthCallbackPage from './pages/admin/AuthCallbackPage';
-import MagicLinkVerifyPage from './pages/admin/MagicLinkVerifyPage';
+import ChangePasswordPage from './pages/admin/ChangePasswordPage';
 
 // Developer Hub
 import DeveloperHub from './pages/DeveloperHub';
@@ -32,8 +31,16 @@ export default function App() {
         <Routes>
           {/* Auth routes (no layout, no protection) */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="/auth/verify" element={<MagicLinkVerifyPage />} />
+
+          {/* Change password (protected but allows password change state) */}
+          <Route
+            path="/admin/change-password"
+            element={
+              <ProtectedRoute allowPasswordChange>
+                <ChangePasswordPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Client-facing routes (no layout, no protection) */}
           <Route path="/org/:clientSlug" element={<ClientOnboarding />} />

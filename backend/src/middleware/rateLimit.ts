@@ -79,12 +79,12 @@ export const proxyRateLimiter = rateLimit({
 });
 
 /**
- * Strict rate limiter for authentication endpoints
- * 10 requests per 15 minutes per IP (prevents brute force)
+ * Rate limiter for authentication endpoints
+ * 20 requests per 15 minutes per IP (prevents brute force)
  */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 requests per window
+  max: 20, // 20 requests per window
   standardHeaders: true,
   legacyHeaders: false,
   message: {

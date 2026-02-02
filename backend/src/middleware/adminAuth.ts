@@ -2,44 +2,17 @@
  * Admin Authentication Middleware
  *
  * Verifies JWT tokens for admin dashboard routes.
- * Supports both HttpOnly cookies (preferred) and Authorization header.
- * Uses the adminAuthService for token verification.
+ * Uses Authorization: Bearer <token> header only (no cookies).
  */
 
 import { Request, Response, NextFunction } from 'express';
 import { verifyJwt, getCurrentUser, isAdmin, isSuperAdmin } from '../services/adminAuthService';
 import { AdminContext, AdminRole } from '../types';
 
-// Note: Express Request extension is declared in types/multiTenant.ts
-
-// Cookie configuration
-export const AUTH_COOKIE_NAME = 'admin_session';
-
-// In production with separate frontend/backend domains (Cloud Run), we need:
-// - sameSite: 'none' to allow cross-origin cookies
-// - secure: true (required when sameSite is 'none')
-// In development (localhost), we use 'lax' for simpler local testing
-const isProduction = process.env.NODE_ENV === 'production';
-
-export const AUTH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: isProduction, // Must be true for sameSite: 'none'
-  sameSite: isProduction ? 'none' as const : 'lax' as const,
-  maxAge: 12 * 60 * 60 * 1000, // 12 hours
-  path: '/',
-};
-
 /**
- * Extract JWT from cookie first, then Authorization header
+ * Extract JWT from Authorization header
  */
 function extractToken(req: Request): string | null {
-  // 1. Check HttpOnly cookie first (preferred for persistence)
-  const cookieToken = req.cookies?.[AUTH_COOKIE_NAME];
-  if (cookieToken) {
-    return cookieToken;
-  }
-
-  // 2. Fall back to Authorization header
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
@@ -71,16 +44,12 @@ export async function adminAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Debug logging for cookie troubleshooting
-    console.log('[AdminAuth] Cookies received:', req.cookies);
-    console.log('[AdminAuth] Cookie header:', req.headers.cookie);
-
     const token = extractToken(req);
 
     if (!token) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: 'Authentication required. Please include Authorization header.',
         code: 'NO_TOKEN',
       });
       return;
@@ -119,7 +88,7 @@ export async function adminAuth(
       return;
     }
 
-    // Attach admin context to request (using snake_case per AdminContext interface)
+    // Attach admin context to request
     req.admin = {
       user_id: user.user_id,
       email: user.email,

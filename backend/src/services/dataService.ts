@@ -46,14 +46,6 @@ export const {
   updateAdminLastLogin,
 } = dataService;
 
-// --- Magic Links ---
-export const {
-  createMagicLink,
-  getMagicLinkByToken,
-  markMagicLinkUsed,
-  cleanupExpiredMagicLinks,
-} = dataService;
-
 // --- Global Mapping Templates ---
 export const {
   createGlobalTemplate,

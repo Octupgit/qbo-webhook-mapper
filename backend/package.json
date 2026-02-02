@@ -10,11 +10,12 @@
     "lint": "eslint src --ext .ts",
     "test:prod": "tsx tests/production_ready_check.ts",
     "generate-api-key": "tsx scripts/generate-test-api-key.ts",
-    "generate-test-jwt": "tsx scripts/generate-test-jwt.ts"
+    "generate-test-jwt": "tsx scripts/generate-test-jwt.ts",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.0.3",
     "@google-cloud/bigquery": "^7.3.0",
+    "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
@@ -27,6 +28,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
     "@types/crypto-js": "^4.2.1",

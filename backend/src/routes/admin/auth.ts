@@ -1,158 +1,110 @@
 /**
  * Admin Authentication Routes
  *
- * Microsoft SSO authentication only.
- * Uses HttpOnly cookies for persistent sessions (12 hours).
+ * Email/Password authentication with JWT tokens.
+ * Uses Authorization: Bearer <token> header (no cookies).
  */
 
 import { Router, Request, Response } from 'express';
 import {
+  loginAdmin,
+  changePassword,
   getCurrentUser,
   refreshJwt,
   verifyJwt,
 } from '../../services/adminAuthService';
-import {
-  isMicrosoftSSOConfigured,
-  getMicrosoftLoginUrl,
-  handleMicrosoftCallback,
-  getMicrosoftSSOStatus,
-} from '../../services/microsoftAuthService';
-import { AUTH_COOKIE_NAME, AUTH_COOKIE_OPTIONS } from '../../middleware/adminAuth';
+import { adminAuth } from '../../middleware/adminAuth';
 
 const router = Router();
 
 /**
- * Helper to set auth cookie
+ * POST /api/admin/auth/login
+ * Authenticate with email and password
  */
-function setAuthCookie(res: Response, token: string): void {
-  console.log('[Auth] Setting cookie with options:', AUTH_COOKIE_OPTIONS);
-  res.cookie(AUTH_COOKIE_NAME, token, AUTH_COOKIE_OPTIONS);
-}
-
-/**
- * Helper to clear auth cookie
- */
-function clearAuthCookie(res: Response): void {
-  res.clearCookie(AUTH_COOKIE_NAME, { path: '/' });
-}
-
-// =============================================================================
-// MICROSOFT SSO ROUTES
-// =============================================================================
-
-/**
- * GET /api/admin/auth/status
- * Get authentication provider status
- */
-router.get('/status', (req: Request, res: Response) => {
-  console.log('[Auth/Status] Cookies received:', req.cookies);
-  console.log('[Auth/Status] Cookie header:', req.headers.cookie);
-  const microsoftStatus = getMicrosoftSSOStatus();
-
-  return res.json({
-    success: true,
-    data: {
-      microsoft: microsoftStatus,
-    },
-  });
-});
-
-/**
- * GET /api/admin/auth/microsoft
- * Initiate Microsoft SSO login
- */
-router.get('/microsoft', async (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
-    if (!isMicrosoftSSOConfigured()) {
-      return res.status(503).json({
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
         success: false,
-        error: 'Microsoft SSO is not configured. Please set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET.',
+        error: 'Email and password are required',
       });
     }
 
-    const { url, state } = await getMicrosoftLoginUrl();
+    const result = await loginAdmin(email, password);
 
-    // Store state in cookie for verification
-    res.cookie('msal_state', state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 5 * 60 * 1000, // 5 minutes
+    if (!result.success) {
+      return res.status(401).json({
+        success: false,
+        error: result.message,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        token: result.jwt,
+        user: result.user,
+        must_change_password: result.must_change_password,
+      },
     });
-
-    return res.redirect(url);
   } catch (error) {
-    console.error('Microsoft login initiation error:', error);
-    const adminBaseUrl = process.env.ADMIN_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-    return res.redirect(`${adminBaseUrl}/login?error=sso_init_failed&message=${encodeURIComponent('Failed to initialize Microsoft login')}`);
+    console.error('Login error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Login failed',
+    });
   }
 });
 
 /**
- * GET /api/admin/auth/microsoft/callback
- * Handle Microsoft OAuth callback
- * Sets HttpOnly cookie for persistent session
+ * POST /api/admin/auth/change-password
+ * Change password (authenticated)
  */
-router.get('/microsoft/callback', async (req: Request, res: Response) => {
+router.post('/change-password', adminAuth, async (req: Request, res: Response) => {
   try {
-    const { code, state, error, error_description } = req.query;
-    const adminBaseUrl = process.env.ADMIN_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const { current_password, new_password } = req.body;
+    const userId = req.admin!.user_id;
 
-    if (error) {
-      console.error('Microsoft OAuth error:', error, error_description);
-      return res.redirect(`${adminBaseUrl}/login?error=${error}&message=${encodeURIComponent(String(error_description || ''))}`);
+    if (!new_password) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password is required',
+      });
     }
 
-    if (!code || !state) {
-      return res.redirect(`${adminBaseUrl}/login?error=missing_params`);
+    const result = await changePassword(userId, current_password || '', new_password);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.message,
+      });
     }
 
-    const result = await handleMicrosoftCallback(String(code), String(state));
-
-    // Clear state cookie
-    res.clearCookie('msal_state');
-
-    if (result.success && result.jwt) {
-      // Set HttpOnly cookie for persistent session
-      setAuthCookie(res, result.jwt);
-      // Redirect to dashboard
-      return res.redirect(`${adminBaseUrl}/admin/organizations`);
-    }
-
-    // Auth failed - redirect to login with error
-    if (result.redirectUrl) {
-      return res.redirect(result.redirectUrl);
-    }
-
-    return res.redirect(`${adminBaseUrl}/login?error=auth_failed`);
+    return res.json({
+      success: true,
+      message: result.message,
+    });
   } catch (error) {
-    console.error('Microsoft callback error:', error);
-    const adminBaseUrl = process.env.ADMIN_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-    return res.redirect(`${adminBaseUrl}/login?error=callback_failed`);
+    console.error('Change password error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to change password',
+    });
   }
 });
-
-// =============================================================================
-// SESSION MANAGEMENT ROUTES
-// =============================================================================
 
 /**
  * GET /api/admin/auth/me
- * Get current authenticated user (from cookie)
+ * Get current authenticated user
  */
 router.get('/me', async (req: Request, res: Response) => {
   try {
-    // Check cookie first, then header
-    let token = req.cookies?.[AUTH_COOKIE_NAME];
+    const authHeader = req.headers.authorization;
 
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader) {
-        token = authHeader.replace('Bearer ', '');
-      }
-    }
-
-    if (!token) {
+    if (!authHeader) {
       return res.status(401).json({
         success: false,
         error: 'Authentication required',
@@ -160,11 +112,10 @@ router.get('/me', async (req: Request, res: Response) => {
       });
     }
 
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
     const user = await getCurrentUser(token);
 
     if (!user) {
-      // Clear invalid cookie
-      clearAuthCookie(res);
       return res.status(401).json({
         success: false,
         error: 'Invalid or expired token',
@@ -186,72 +137,71 @@ router.get('/me', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/admin/auth/logout
- * Clear session cookie and logout
- */
-router.post('/logout', (req: Request, res: Response) => {
-  clearAuthCookie(res);
-  return res.json({
-    success: true,
-    message: 'Logged out successfully',
-  });
-});
-
-/**
  * POST /api/admin/auth/refresh
- * Refresh session token (heartbeat)
- * Extends session by generating a new token with fresh expiration
+ * Refresh JWT token
  */
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
-    // Get current token from cookie
-    const token = req.cookies?.[AUTH_COOKIE_NAME];
+    const authHeader = req.headers.authorization;
 
-    if (!token) {
+    if (!authHeader) {
       return res.status(401).json({
         success: false,
-        error: 'No session to refresh',
-        code: 'NO_SESSION',
+        error: 'No token to refresh',
+        code: 'NO_TOKEN',
       });
     }
+
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
 
     // Verify current token is still valid
-    const { valid, payload } = verifyJwt(token);
+    const { valid } = verifyJwt(token);
 
-    if (!valid || !payload) {
-      clearAuthCookie(res);
+    if (!valid) {
       return res.status(401).json({
         success: false,
-        error: 'Session expired, please login again',
-        code: 'SESSION_EXPIRED',
+        error: 'Token expired, please login again',
+        code: 'TOKEN_EXPIRED',
       });
     }
 
-    // Generate new token with fresh expiration
+    // Generate new token
     const refreshResult = refreshJwt(token);
 
     if (!refreshResult.success || !refreshResult.jwt) {
       return res.status(401).json({
         success: false,
-        error: 'Failed to refresh session',
+        error: 'Failed to refresh token',
         code: 'REFRESH_FAILED',
       });
     }
 
-    // Set new cookie
-    setAuthCookie(res, refreshResult.jwt);
-
     return res.json({
       success: true,
-      message: 'Session refreshed',
+      data: {
+        token: refreshResult.jwt,
+      },
     });
   } catch (error) {
-    console.error('Session refresh error:', error);
+    console.error('Token refresh error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to refresh session',
+      error: 'Failed to refresh token',
     });
   }
+});
+
+/**
+ * POST /api/admin/auth/logout
+ * Logout (client-side token removal)
+ */
+router.post('/logout', (req: Request, res: Response) => {
+  // With JWT in localStorage, logout is client-side only
+  // This endpoint exists for API completeness
+  return res.json({
+    success: true,
+    message: 'Logged out successfully. Please remove the token from localStorage.',
+  });
 });
 
 export default router;

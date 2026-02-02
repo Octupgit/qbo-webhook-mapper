@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import path from 'path';
 import config from './config';
 import routes from './routes';
@@ -20,20 +19,11 @@ import {
 process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
   console.error('Unhandled Rejection at:', promise);
   console.error('Reason:', reason);
-  // Log to error tracking service in production
-  if (process.env.NODE_ENV === 'production') {
-    // TODO: Send to error tracking service (Sentry, etc.)
-  }
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
-  // Log to error tracking service in production
-  if (process.env.NODE_ENV === 'production') {
-    // TODO: Send to error tracking service (Sentry, etc.)
-  }
-  // Exit process on uncaught exception (recommended)
   process.exit(1);
 });
 
@@ -43,20 +33,13 @@ process.on('uncaughtException', (error: Error) => {
 
 const app = express();
 
-// CORS configuration
-// In production with separate Cloud Run services, we must explicitly set the origin
-// for credentials (cookies) to work properly with cross-origin requests
-const corsOrigin = process.env.NODE_ENV === 'production'
-  ? (process.env.FRONTEND_URL || true) // Use FRONTEND_URL if set, otherwise reflect origin
-  : config.frontendUrl;
-
-console.log(`[CORS] Origin configured: ${corsOrigin}`);
-
+// CORS configuration - allow all origins with Authorization header
 app.use(cors({
-  origin: corsOrigin,
+  origin: true, // Reflect origin
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(cookieParser());
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -76,8 +59,8 @@ app.use((req, res, next) => {
 // RATE LIMITING
 // =============================================================================
 
-// Auth endpoints - strict rate limiting (10 requests per 15 minutes)
-app.use('/api/admin/auth', authRateLimiter);
+// Auth endpoints - moderate rate limiting (20 requests per 15 minutes)
+app.use('/api/admin/auth/login', authRateLimiter);
 
 // Proxy API - per API key rate limiting (60 requests per minute)
 app.use('/api/v1/org/:slug/proxy', proxyRateLimiter);

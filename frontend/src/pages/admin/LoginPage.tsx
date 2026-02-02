@@ -1,29 +1,22 @@
 /**
  * Admin Login Page
  *
- * Microsoft SSO authentication only.
+ * Email/Password authentication with JWT stored in localStorage.
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import apiClient from '../../api/client';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, login } = useAuth();
 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isRedirecting, setIsRedirecting] = useState(false);
-
-  // Check for error in URL params
-  useEffect(() => {
-    const errorParam = searchParams.get('error');
-    const messageParam = searchParams.get('message');
-    if (errorParam) {
-      setError(messageParam || `Authentication failed: ${errorParam}`);
-    }
-  }, [searchParams]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -32,12 +25,38 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, isLoading, navigate]);
 
-  const handleMicrosoftLogin = () => {
-    setIsRedirecting(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    // Redirect to backend Microsoft auth endpoint
-    const apiUrl = import.meta.env.VITE_API_URL || '/api';
-    window.location.href = `${apiUrl}/admin/auth/microsoft`;
+    setIsSubmitting(true);
+
+    try {
+      const response = await apiClient.post('/admin/auth/login', {
+        email,
+        password,
+      });
+
+      if (response.data.success) {
+        const { token, user, must_change_password } = response.data.data;
+
+        // Store token and user in auth context
+        login(token, user);
+
+        // Redirect based on must_change_password flag
+        if (must_change_password) {
+          navigate('/admin/change-password');
+        } else {
+          navigate('/admin');
+        }
+      } else {
+        setError(response.data.error || 'Login failed');
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      setError(error.response?.data?.error || 'Login failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoading) {
@@ -66,34 +85,61 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="bg-white shadow-md rounded-lg p-8 space-y-6">
-          {/* Microsoft SSO Button */}
-          <button
-            onClick={handleMicrosoftLogin}
-            disabled={isRedirecting}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            {isRedirecting ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600"></div>
-                Redirecting to Microsoft...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" viewBox="0 0 21 21" fill="none">
-                  <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-                  <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-                  <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-                  <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-                </svg>
-                Sign in with Microsoft
-              </>
-            )}
-          </button>
+        <div className="bg-white shadow-md rounded-lg p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="you@example.com"
+                disabled={isSubmitting}
+              />
+            </div>
 
-          <p className="text-center text-sm text-gray-500">
-            Use your organization's Microsoft account to sign in.
-          </p>
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter your password"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Signing in...
+                </>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </form>
         </div>
 
         <p className="text-center text-xs text-gray-500">
