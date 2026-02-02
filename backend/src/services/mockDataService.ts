@@ -67,14 +67,14 @@ function initSampleData() {
   };
   organizations.set(sampleOrg.organization_id, sampleOrg);
 
-  // Create admin user (password: Octup@2026!)
-  // bcrypt hash of 'Octup@2026!' with 10 rounds
+  // Create admin user (password: Alon@2026)
+  // bcrypt hash of 'Alon@2026' with 10 rounds
   const adminUser: AdminUser = {
     user_id: 'admin-001',
     email: 'admin@octup.com',
     name: 'System Admin',
-    password_hash: '$2b$10$rQZ5xK8nKzKzKzKzKzKzKuYvYvYvYvYvYvYvYvYvYvYvYvYvYvYvY', // placeholder, will be set by script
-    must_change_password: true,
+    password_hash: '$2b$10$kNO7NoLOrfRE4L8aORYA.e4xb9YjTBfZIRG6YM5yMN0ycUORFZ.ve', // Alon@2026
+    must_change_password: false,
     role: 'super_admin',
     is_active: true,
     created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
