@@ -125,7 +125,8 @@ export async function getOrgStatus(clientSlug: string): Promise<OrgConnectionSta
  * Get OAuth connect URL for an organization
  */
 export function getConnectUrl(clientSlug: string, source: 'admin' | 'public' = 'admin'): string {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  // Use VITE_API_URL, or derive from current origin in production
+  const baseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
   return `${baseUrl}/v1/connect/${clientSlug}?source=${source}`;
 }
 

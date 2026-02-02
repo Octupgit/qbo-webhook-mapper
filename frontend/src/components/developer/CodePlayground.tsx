@@ -63,7 +63,8 @@ export default function CodePlayground({ endpoint, orgSlug, apiKey }: CodePlaygr
   };
 
   const buildUrl = () => {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    // Use VITE_API_URL, or derive from current origin in production
+    const baseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
     let path = endpoint.path;
 
     // Replace path parameters
