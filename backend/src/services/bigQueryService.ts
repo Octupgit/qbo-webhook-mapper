@@ -222,6 +222,18 @@ export async function updateAdminUser(userId: string, updates: Partial<AdminUser
     setClauses.push('last_login_at = @last_login_at');
     params.last_login_at = updates.last_login_at;
   }
+  if (updates.password_hash !== undefined) {
+    setClauses.push('password_hash = @password_hash');
+    params.password_hash = updates.password_hash;
+  }
+  if (updates.must_change_password !== undefined) {
+    setClauses.push('must_change_password = @must_change_password');
+    params.must_change_password = updates.must_change_password;
+  }
+
+  if (setClauses.length === 0) {
+    return; // Nothing to update
+  }
 
   const query = `
     UPDATE ${tablePath(TABLES.ADMIN_USERS)}
