@@ -1,3 +1,8 @@
+// Immediate startup logging for Cloud Run debugging
+console.log('[Startup] Process starting...');
+console.log('[Startup] NODE_ENV:', process.env.NODE_ENV);
+console.log('[Startup] PORT:', process.env.PORT);
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -11,6 +16,8 @@ import {
   webhookRateLimiter,
 } from './middleware/rateLimit';
 import { logEnvWarnings } from './utils/envCheck';
+
+console.log('[Startup] All imports loaded successfully');
 
 // =============================================================================
 // GLOBAL ERROR HANDLERS
@@ -128,24 +135,37 @@ app.use(errorHandler);
 
 // Start server - bind to 0.0.0.0 for Cloud Run compatibility
 const HOST = '0.0.0.0';
-console.log(`[Startup] Starting server on ${HOST}:${config.port}...`);
+const PORT = config.port;
 
-app.listen(config.port, HOST, () => {
-  console.log(`[Startup] Server is now listening!`);
-  console.log(`
+console.log(`[Startup] Attempting to start server...`);
+console.log(`[Startup] Config port: ${PORT}, Host: ${HOST}`);
+
+try {
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`[Startup] Server is now listening on ${HOST}:${PORT}`);
+    console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║       QBO Webhook Mapper API Server                       ║
 ╠═══════════════════════════════════════════════════════════╣
-║  Port:        ${config.port}                                       ║
+║  Port:        ${PORT}                                       ║
 ║  Host:        ${HOST}                                     ║
 ║  Environment: ${config.nodeEnv.padEnd(12)}                        ║
 ║  BigQuery:    ${config.bigquery.projectId}/${config.bigquery.dataset.substring(0, 10)}...       ║
 ║  QBO Env:     ${config.qbo.environment.padEnd(12)}                        ║
 ╚═══════════════════════════════════════════════════════════╝
-  `);
+    `);
 
-  // Log environment configuration warnings
-  logEnvWarnings();
-});
+    // Log environment configuration warnings
+    logEnvWarnings();
+  });
+
+  server.on('error', (err: Error) => {
+    console.error('[Startup] Server error:', err);
+    process.exit(1);
+  });
+} catch (err) {
+  console.error('[Startup] Failed to start server:', err);
+  process.exit(1);
+}
 
 export default app;

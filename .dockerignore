@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Development files
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# Build outputs (will be rebuilt in container)
+dist
+**/dist
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+coverage
+**/*.test.ts
+**/*.spec.ts
+__tests__
+
+# Documentation
+*.md
+docs
+
+# Scripts (not needed in container)
+scripts/*.sql
+scripts/*.py
+
+# Logs
+*.log
+npm-debug.log*
