@@ -35,7 +35,7 @@ import VisualMapper from '../../components/mappings/VisualMapper';
 import DeveloperHub from '../DeveloperHub';
 
 type LoadingState = 'idle' | 'loading' | 'success' | 'error';
-type TabType = 'overview' | 'settings' | 'mappings' | 'visualMapper' | 'apiKeys' | 'data' | 'developer';
+type TabType = 'overview' | 'settings' | 'sources' | 'mappings' | 'visualMapper' | 'apiKeys' | 'data' | 'developer';
 
 // QBO Entity types for data tab
 type EntityType = 'customers' | 'items' | 'invoices' | 'accounts' | 'vendors';
@@ -346,6 +346,12 @@ export default function OrgDetailPage() {
               label="Settings"
             />
             <TabButton
+              active={activeTab === 'sources'}
+              onClick={() => setActiveTab('sources')}
+              icon={<Zap className="w-4 h-4" />}
+              label="Sources"
+            />
+            <TabButton
               active={activeTab === 'mappings'}
               onClick={() => setActiveTab('mappings')}
               icon={<Map className="w-4 h-4" />}
@@ -400,6 +406,16 @@ export default function OrgDetailPage() {
             onToggleActive={handleToggleActive}
             onToggleConnectionLink={handleToggleConnectionLink}
             onCopyPublicLink={copyPublicLink}
+          />
+        )}
+
+        {activeTab === 'sources' && organization && (
+          <SourcesTab
+            organization={organization}
+            sources={sources}
+            loading={loadingMappings}
+            onRefresh={loadMappingsData}
+            onCreateSource={() => setShowCreateSourceModal(true)}
           />
         )}
 
@@ -932,6 +948,194 @@ function SettingsTab({
             </p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SourcesTab({
+  organization,
+  sources,
+  loading,
+  onRefresh,
+  onCreateSource,
+}: {
+  organization: Organization;
+  sources: WebhookSource[];
+  loading: boolean;
+  onRefresh: () => void;
+  onCreateSource: () => void;
+}) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-medium text-gray-900">Webhook Sources</h2>
+          <p className="text-sm text-gray-500">
+            Manage webhook endpoints for receiving data from external systems
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <button
+            onClick={onCreateSource}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          >
+            <Plus className="w-4 h-4" />
+            Create Source
+          </button>
+        </div>
+      </div>
+
+      {sources.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <Zap className="w-12 h-12 text-gray-300 mx-auto" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">No Webhook Sources</h3>
+          <p className="mt-2 text-gray-500">
+            Create a webhook source to start receiving data from external systems.
+          </p>
+          <button
+            onClick={onCreateSource}
+            className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          >
+            <Plus className="w-4 h-4" />
+            Create Source
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Source
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Webhook URL
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  API Key
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Created
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {sources.map(source => {
+                const webhookUrl = `${baseUrl}/api/v1/webhook/${organization.slug}/${source.source_id}`;
+                const apiKeyPreview = source.api_key
+                  ? `${source.api_key.substring(0, 8)}...${source.api_key.substring(source.api_key.length - 4)}`
+                  : 'N/A';
+
+                return (
+                  <tr key={source.source_id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+                          <Zap className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{source.name}</div>
+                          {source.description && (
+                            <div className="text-sm text-gray-500">{source.description}</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+                        {source.source_type || 'custom'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs font-mono text-gray-600 bg-gray-50 px-2 py-1 rounded max-w-xs truncate">
+                          {webhookUrl}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(webhookUrl, `url-${source.source_id}`)}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Copy URL"
+                        >
+                          {copiedId === `url-${source.source_id}` ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs font-mono text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                          {apiKeyPreview}
+                        </code>
+                        {source.api_key && (
+                          <button
+                            onClick={() => copyToClipboard(source.api_key, `key-${source.source_id}`)}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Copy API Key"
+                          >
+                            {copiedId === `key-${source.source_id}` ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {source.created_at
+                        ? new Date(source.created_at).toLocaleDateString()
+                        : 'N/A'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Usage Instructions */}
+      <div className="bg-blue-50 rounded-xl border border-blue-200 p-6">
+        <h3 className="text-sm font-medium text-blue-900 mb-2">How to use webhook sources</h3>
+        <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+          <li>Copy the <strong>Webhook URL</strong> for your source</li>
+          <li>Configure your external system (Shopify, WooCommerce, etc.) to send webhooks to this URL</li>
+          <li>Include the <strong>API Key</strong> in the request header as <code className="bg-blue-100 px-1 rounded">X-API-Key</code></li>
+          <li>Go to the <strong>Mappings</strong> tab to configure how the webhook data maps to QuickBooks invoices</li>
+        </ol>
       </div>
     </div>
   );
