@@ -1,9 +1,12 @@
 // Webhook Source
 export interface WebhookSource {
   source_id: string;
+  organization_id?: string;
   name: string;
   description?: string;
+  source_type?: string;
   api_key: string;
+  webhook_url?: string;
   is_active: boolean;
   created_at: string;
 }
