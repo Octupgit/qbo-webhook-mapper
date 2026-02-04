@@ -1167,9 +1167,17 @@ function MappingsTab({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   // QBO Invoice Fields
-  const qboFields = [
-    { path: 'CustomerRef.value', label: 'Customer', required: true },
+  const qboFields: Array<{
+    path: string;
+    label: string;
+    required: boolean;
+    staticDefault?: string;
+    lookupType?: 'customer' | 'item';
+  }> = [
+    { path: 'CustomerRef.value', label: 'Customer', required: true, lookupType: 'customer' },
     { path: 'Line[0].Amount', label: 'Amount', required: true },
+    { path: 'Line[0].DetailType', label: 'Line Detail Type', required: true, staticDefault: 'SalesItemLineDetail' },
+    { path: 'Line[0].SalesItemLineDetail.ItemRef.value', label: 'Product/Service', required: true, lookupType: 'item' },
     { path: 'Line[0].Description', label: 'Description', required: false },
     { path: 'DocNumber', label: 'Invoice Number', required: false },
     { path: 'TxnDate', label: 'Transaction Date', required: false },
@@ -1178,6 +1186,7 @@ function MappingsTab({
     { path: 'CustomerMemo.value', label: 'Customer Memo', required: false },
     { path: 'PrivateNote', label: 'Private Note', required: false },
   ];
+
 
   // Load existing mappings when source changes
   useEffect(() => {
@@ -1210,17 +1219,32 @@ function MappingsTab({
     setSaveMessage(null);
 
     try {
+      // Add static defaults for required fields
+      const mappingsToSave = [...fieldMappings];
+
+      // Ensure DetailType has its static default
+      const detailTypeField = qboFields.find(f => f.path === 'Line[0].DetailType');
+      if (detailTypeField && 'staticDefault' in detailTypeField) {
+        const hasDetailType = mappingsToSave.some(m => m.qboField === 'Line[0].DetailType');
+        if (!hasDetailType) {
+          mappingsToSave.push({
+            qboField: 'Line[0].DetailType',
+            staticValue: detailTypeField.staticDefault as string,
+          });
+        }
+      }
+
       const existingMapping = mappings.find(m => m.source_id === selectedSourceId);
 
       if (existingMapping) {
         await adminApi.updateClientOverride(organization.organization_id, existingMapping.override_id, {
-          field_mappings: fieldMappings,
+          field_mappings: mappingsToSave,
         });
       } else {
         await adminApi.createClientOverride(organization.organization_id, {
           name: `${sources.find(s => s.source_id === selectedSourceId)?.name} Mapping`,
           source_id: selectedSourceId,
-          field_mappings: fieldMappings,
+          field_mappings: mappingsToSave,
         });
       }
 
@@ -1245,15 +1269,22 @@ function MappingsTab({
     }
   }
 
-  // Extract all paths from payload
+  // Extract all paths from payload (including array items)
   const extractPaths = (obj: unknown, prefix = '$'): string[] => {
     const paths: string[] = [];
     if (obj && typeof obj === 'object') {
-      for (const [key, value] of Object.entries(obj)) {
-        const path = `${prefix}.${key}`;
-        paths.push(path);
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-          paths.push(...extractPaths(value, path));
+      if (Array.isArray(obj)) {
+        // For arrays, recurse into first element with [0] notation
+        if (obj.length > 0) {
+          paths.push(...extractPaths(obj[0], `${prefix}[0]`));
+        }
+      } else {
+        for (const [key, value] of Object.entries(obj)) {
+          const path = `${prefix}.${key}`;
+          paths.push(path);
+          if (value && typeof value === 'object') {
+            paths.push(...extractPaths(value, path));
+          }
         }
       }
     }
@@ -1370,24 +1401,46 @@ function MappingsTab({
           <div className="space-y-4">
             {qboFields.map(field => {
               const currentMapping = fieldMappings.find(m => m.qboField === field.path);
+              const hasStaticDefault = 'staticDefault' in field && field.staticDefault;
 
               return (
                 <div key={field.path} className="space-y-1">
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                     {field.label}
                     {field.required && <span className="text-red-500">*</span>}
+                    {hasStaticDefault && (
+                      <span className="text-xs text-gray-400">(auto-set to "{field.staticDefault}")</span>
+                    )}
                   </label>
-                  <select
-                    value={currentMapping?.sourceField || ''}
-                    onChange={(e) => handleMappingChange(field.path, e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    style={{ backgroundColor: '#ffffff' }}
-                  >
-                    <option value="">-- Select source field --</option>
-                    {payloadPaths.map(path => (
-                      <option key={path} value={path}>{path}</option>
-                    ))}
-                  </select>
+                  {hasStaticDefault ? (
+                    <input
+                      type="text"
+                      value={currentMapping?.staticValue || field.staticDefault || ''}
+                      onChange={(e) => {
+                        setFieldMappings(prev => {
+                          const existing = prev.find(m => m.qboField === field.path);
+                          if (existing) {
+                            return prev.map(m => m.qboField === field.path ? { ...m, staticValue: e.target.value, sourceField: undefined } : m);
+                          }
+                          return [...prev, { qboField: field.path, staticValue: e.target.value }];
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder={`Default: ${field.staticDefault}`}
+                    />
+                  ) : (
+                    <select
+                      value={currentMapping?.sourceField || ''}
+                      onChange={(e) => handleMappingChange(field.path, e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      style={{ backgroundColor: '#ffffff' }}
+                    >
+                      <option value="">-- Select source field --</option>
+                      {payloadPaths.map(path => (
+                        <option key={path} value={path}>{path}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               );
             })}
@@ -1452,7 +1505,7 @@ function VisualMapperTab({
       if (search) params.append('search', search);
 
       const response = await fetch(
-        `${baseUrl}/v1/org/${organization.slug}/proxy/data?${params}`,
+        `${baseUrl}/api/v1/org/${organization.slug}/proxy/data?${params}`,
         { credentials: 'include' }
       );
 
@@ -1476,7 +1529,7 @@ function VisualMapperTab({
       if (search) params.append('search', search);
 
       const response = await fetch(
-        `${baseUrl}/v1/org/${organization.slug}/proxy/data?${params}`,
+        `${baseUrl}/api/v1/org/${organization.slug}/proxy/data?${params}`,
         { credentials: 'include' }
       );
 
@@ -1610,7 +1663,7 @@ function DataTab({
       if (searchQuery) params.append('search', searchQuery);
 
       const response = await fetch(
-        `${baseUrl}/v1/org/${organizationSlug}/proxy/data?${params}`,
+        `${baseUrl}/api/v1/org/${organizationSlug}/proxy/data?${params}`,
         { credentials: 'include' }
       );
 

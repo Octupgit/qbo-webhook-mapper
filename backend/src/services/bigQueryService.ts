@@ -583,8 +583,35 @@ export async function createClientOverride(
   priority = 50,
   staticValues?: Record<string, unknown>
 ): Promise<ClientMappingOverride> {
-  const override: ClientMappingOverride = {
-    override_id: uuidv4(),
+  const overrideId = uuidv4();
+  const createdAt = new Date();
+
+  // Use regular INSERT query instead of streaming insert
+  // This avoids the "streaming buffer" limitation that prevents immediate updates
+  const query = `
+    INSERT INTO ${tablePath(TABLES.CLIENT_OVERRIDES)}
+    (override_id, organization_id, source_id, template_id, name, description,
+     field_mappings, static_values, priority, is_active, created_at, updated_at)
+    VALUES
+    (@overrideId, @organizationId, @sourceId, @templateId, @name, @description,
+     @fieldMappings, @staticValues, @priority, TRUE, @createdAt, @createdAt)
+  `;
+
+  await runQuery(query, {
+    overrideId,
+    organizationId,
+    sourceId: sourceId || null,
+    templateId: templateId || null,
+    name,
+    description: description || null,
+    fieldMappings: JSON.stringify(fieldMappings),
+    staticValues: staticValues ? JSON.stringify(staticValues) : null,
+    priority,
+    createdAt: createdAt.toISOString(),
+  }, `createClientOverride(${organizationId}, ${name})`);
+
+  return {
+    override_id: overrideId,
     organization_id: organizationId,
     source_id: sourceId,
     template_id: templateId,
@@ -594,25 +621,8 @@ export async function createClientOverride(
     static_values: staticValues,
     priority,
     is_active: true,
-    created_at: new Date(),
+    created_at: createdAt,
   };
-
-  await runInsert(TABLES.CLIENT_OVERRIDES, [{
-    override_id: override.override_id,
-    organization_id: override.organization_id,
-    source_id: override.source_id || null,
-    template_id: override.template_id || null,
-    name: override.name,
-    description: override.description || null,
-    field_mappings: JSON.stringify(override.field_mappings),
-    static_values: staticValues ? JSON.stringify(staticValues) : null,
-    priority: override.priority,
-    is_active: override.is_active,
-    created_at: override.created_at.toISOString(),
-    updated_at: override.created_at.toISOString(),
-  }], `createClientOverride(${organizationId}, ${name})`);
-
-  return override;
 }
 
 export async function getClientOverrides(
@@ -918,12 +928,24 @@ export async function markPayloadProcessed(
   payloadId: string,
   invoiceId: string
 ): Promise<void> {
-  const query = `
-    UPDATE ${tablePath(TABLES.PAYLOADS)}
-    SET processed = TRUE, processed_at = CURRENT_TIMESTAMP(), invoice_id = @invoiceId
-    WHERE payload_id = @payloadId AND organization_id = @organizationId
-  `;
-  await runQuery(query, { payloadId, organizationId, invoiceId });
+  try {
+    const query = `
+      UPDATE ${tablePath(TABLES.PAYLOADS)}
+      SET processed = TRUE, processed_at = CURRENT_TIMESTAMP(), invoice_id = @invoiceId
+      WHERE payload_id = @payloadId AND organization_id = @organizationId
+    `;
+    await runQuery(query, { payloadId, organizationId, invoiceId });
+  } catch (error) {
+    // Handle BigQuery streaming buffer limitation gracefully
+    // Rows in the streaming buffer (~90 minutes) cannot be updated
+    // The sync_log already tracks success, so this is non-critical
+    const errorMessage = error instanceof Error ? error.message : '';
+    if (errorMessage.includes('streaming buffer')) {
+      console.warn(`[BigQuery] Cannot update payload ${payloadId} - still in streaming buffer. Sync log tracks success.`);
+      return; // Don't throw - invoice was created successfully
+    }
+    throw error; // Re-throw other errors
+  }
 }
 
 // ============================================================
@@ -1200,36 +1222,42 @@ export async function createSyncLog(
   sourceId: string,
   mappingId?: string
 ): Promise<SyncLog> {
-  const log: SyncLog = {
-    log_id: uuidv4(),
+  const logId = uuidv4();
+  const createdAt = new Date();
+
+  // Use regular INSERT query instead of streaming insert
+  // This avoids the "streaming buffer" limitation that prevents immediate updates
+  const query = `
+    INSERT INTO ${tablePath(TABLES.LOGS)}
+    (log_id, organization_id, payload_id, source_id, mapping_id, status,
+     qbo_invoice_id, qbo_doc_number, request_payload, response_payload,
+     error_message, error_code, retry_count, created_at, completed_at)
+    VALUES
+    (@logId, @organizationId, @payloadId, @sourceId, @mappingId, @status,
+     NULL, NULL, NULL, NULL, NULL, NULL, @retryCount, @createdAt, NULL)
+  `;
+
+  await runQuery(query, {
+    logId,
+    organizationId,
+    payloadId,
+    sourceId,
+    mappingId: mappingId || null,
+    status: 'pending',
+    retryCount: 0,
+    createdAt: createdAt.toISOString(),
+  }, `createSyncLog(${organizationId}, ${sourceId})`);
+
+  return {
+    log_id: logId,
     organization_id: organizationId,
     payload_id: payloadId,
     source_id: sourceId,
     mapping_id: mappingId,
     status: 'pending',
     retry_count: 0,
-    created_at: new Date(),
+    created_at: createdAt,
   };
-
-  await runInsert(TABLES.LOGS, [{
-    log_id: log.log_id,
-    organization_id: log.organization_id,
-    payload_id: log.payload_id,
-    source_id: log.source_id,
-    mapping_id: log.mapping_id || null,
-    status: log.status,
-    qbo_invoice_id: null,
-    qbo_doc_number: null,
-    request_payload: null,
-    response_payload: null,
-    error_message: null,
-    error_code: null,
-    retry_count: log.retry_count,
-    created_at: log.created_at.toISOString(),
-    completed_at: null,
-  }], `createSyncLog(${organizationId}, ${sourceId})`);
-
-  return log;
 }
 
 export async function updateSyncLog(
@@ -1282,7 +1310,58 @@ export async function updateSyncLog(
     SET ${setClauses.join(', ')}
     WHERE log_id = @logId AND organization_id = @organizationId
   `;
-  await runQuery(query, params);
+
+  try {
+    await runQuery(query, params);
+  } catch (error) {
+    // Handle BigQuery streaming buffer limitation gracefully
+    const errorMessage = error instanceof Error ? error.message : '';
+    if (errorMessage.includes('streaming buffer')) {
+      console.warn(`[BigQuery] Cannot update sync log ${logId} - still in streaming buffer`);
+      return; // Don't throw - this is a non-critical update
+    }
+    throw error;
+  }
+}
+
+// Helper to normalize BigQuery timestamp to ISO string
+function normalizeTimestamp(value: unknown): string | undefined {
+  if (!value) return undefined;
+  // BigQuery can return timestamps as {value: "2024-01-01T00:00:00Z"} or as plain strings
+  if (typeof value === 'object' && value !== null && 'value' in value) {
+    return (value as { value: string }).value;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return undefined;
+}
+
+// Helper to normalize sync log timestamps from BigQuery format
+function normalizeSyncLog(row: Record<string, unknown>): SyncLog {
+  const createdAtStr = normalizeTimestamp(row.created_at) || new Date().toISOString();
+  const completedAtStr = normalizeTimestamp(row.completed_at);
+
+  return {
+    log_id: row.log_id as string,
+    organization_id: row.organization_id as string,
+    payload_id: row.payload_id as string,
+    source_id: row.source_id as string,
+    mapping_id: row.mapping_id as string | undefined,
+    status: row.status as 'pending' | 'success' | 'failed' | 'retrying',
+    qbo_invoice_id: row.qbo_invoice_id as string | undefined,
+    qbo_doc_number: row.qbo_doc_number as string | undefined,
+    request_payload: row.request_payload as string | undefined,
+    response_payload: row.response_payload as string | undefined,
+    error_message: row.error_message as string | undefined,
+    error_code: row.error_code as string | undefined,
+    retry_count: row.retry_count as number,
+    created_at: new Date(createdAtStr),
+    completed_at: completedAtStr ? new Date(completedAtStr) : undefined,
+  };
 }
 
 export async function getSyncLogs(
@@ -1303,7 +1382,8 @@ export async function getSyncLogs(
 
   query += ' ORDER BY created_at DESC LIMIT @limit';
 
-  return runQuery<SyncLog>(query, params);
+  const rows = await runQuery<Record<string, unknown>>(query, params);
+  return rows.map(normalizeSyncLog);
 }
 
 export async function getSyncLogById(
@@ -1314,8 +1394,8 @@ export async function getSyncLogById(
     SELECT * FROM ${tablePath(TABLES.LOGS)}
     WHERE log_id = @logId AND organization_id = @organizationId
   `;
-  const rows = await runQuery<SyncLog>(query, { logId, organizationId });
-  return rows[0] || null;
+  const rows = await runQuery<Record<string, unknown>>(query, { logId, organizationId });
+  return rows[0] ? normalizeSyncLog(rows[0]) : null;
 }
 
 // ============================================================

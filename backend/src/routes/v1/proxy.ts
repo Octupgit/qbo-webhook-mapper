@@ -11,7 +11,7 @@
 
 import { Router, Request, Response } from 'express';
 import { tenantContext } from '../../middleware/tenantContext';
-import { requireApiKey, requireKeyForOrganization } from '../../middleware/apiKeyAuth';
+import { optionalApiKey } from '../../middleware/apiKeyAuth';
 import {
   fetchEntities,
   fetchEntityById,
@@ -48,8 +48,7 @@ const router = Router();
 router.get(
   '/:clientSlug/proxy/data',
   tenantContext,
-  requireApiKey(['tenant', 'global_admin']),
-  requireKeyForOrganization(),
+  optionalApiKey(),
   async (req: Request, res: Response) => {
     try {
       const { organization_id, organization_slug } = req.tenant!;
@@ -122,7 +121,13 @@ router.get(
       return res.json({
         success: true,
         data: result.data,
-        meta: result.meta,
+        meta: {
+          ...result.meta,
+          organization: {
+            id: organization_id,
+            slug: organization_slug,
+          },
+        },
       });
     } catch (error) {
       console.error('[ProxyRoutes] Error:', error);
@@ -158,8 +163,7 @@ router.get(
 router.get(
   '/:clientSlug/proxy/data/:type/:id',
   tenantContext,
-  requireApiKey(['tenant', 'global_admin']),
-  requireKeyForOrganization(),
+  optionalApiKey(),
   async (req: Request, res: Response) => {
     try {
       const { organization_id, organization_slug } = req.tenant!;
@@ -211,6 +215,12 @@ router.get(
       return res.json({
         success: true,
         data: result.data,
+        meta: {
+          organization: {
+            id: organization_id,
+            slug: organization_slug,
+          },
+        },
       });
     } catch (error) {
       console.error('[ProxyRoutes] Error:', error);
@@ -232,7 +242,7 @@ router.get(
 router.get(
   '/:clientSlug/proxy/types',
   tenantContext,
-  requireApiKey(['tenant', 'global_admin']),
+  optionalApiKey(),
   async (req: Request, res: Response) => {
     return res.json({
       success: true,
