@@ -1,5 +1,4 @@
 import pytest
-
 from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
 from accounting.services.oauth_service import OAuthService
 

@@ -1,14 +1,14 @@
 import base64
 import hmac
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from accounting.config import settings
 
 
 def generate_state(partner_id: str, accounting_system: str) -> str:
-    timestamp = int(datetime.now(timezone.utc).timestamp())
+    timestamp = int(datetime.now(UTC).timestamp())
 
     payload = {
         "partner_id": partner_id,
@@ -53,7 +53,7 @@ def verify_state(state: str) -> dict[str, Any] | None:
     if not timestamp:
         return None
 
-    state_age = datetime.now(timezone.utc).timestamp() - timestamp
+    state_age = datetime.now(UTC).timestamp() - timestamp
     if state_age > 600:
         return None
 

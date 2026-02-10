@@ -1,7 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
-
-import pytest
 
 from accounting.utils.oauth_state import generate_state, verify_state
 
@@ -44,12 +42,12 @@ def test_verify_state_invalid_format():
 
 def test_verify_state_expired():
     with patch("accounting.utils.oauth_state.datetime") as mock_datetime:
-        past_time = datetime.now(timezone.utc) - timedelta(minutes=15)
+        past_time = datetime.now(UTC) - timedelta(minutes=15)
         mock_datetime.now.return_value = past_time
 
         state = generate_state(partner_id="partner-123", accounting_system="quickbooks")
 
-        mock_datetime.now.return_value = datetime.now(timezone.utc)
+        mock_datetime.now.return_value = datetime.now(UTC)
 
         result = verify_state(state)
 
