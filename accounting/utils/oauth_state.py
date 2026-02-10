@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from app.config import settings
+from accounting.config import settings
 
 
 def generate_state(partner_id: str, accounting_system: str) -> str:

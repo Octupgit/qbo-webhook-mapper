@@ -1,5 +1,5 @@
-from app.strategies import AccountingSystemFactory
-from app.utils.oauth_state import generate_state
+from accounting.strategies import AccountingSystemFactory
+from accounting.utils.oauth_state import generate_state
 
 
 class OAuthService:

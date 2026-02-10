@@ -1,7 +1,7 @@
 import pytest
 
-from app.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
-from app.services.oauth_service import OAuthService
+from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
+from accounting.services.oauth_service import OAuthService
 
 
 @pytest.mark.asyncio

@@ -2,9 +2,9 @@ import os
 
 import uvicorn
 
-from app.common.fastapi_setup import setup_fastapi_app
-from app.common.logging.json_logger import setup_logger
-from app.routes import routers
+from accounting.common.fastapi_setup import setup_fastapi_app
+from accounting.common.logging.json_logger import setup_logger
+from accounting.routes import routers
 
 LOGGER = setup_logger()
 

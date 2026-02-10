@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 
-from app.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
-from app.services.oauth_service import OAuthService
+from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
+from accounting.services.oauth_service import OAuthService
 
 router = APIRouter(prefix="/api/v1/oauth", tags=["OAuth"])
 

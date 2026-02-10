@@ -1,4 +1,4 @@
-from app.models.accounting import (
+from accounting.models.accounting import (
     BaseAuthResult,
     BaseInvoiceData,
     BaseInvoiceResult,

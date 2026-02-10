@@ -1,7 +1,7 @@
 from enum import Enum
 
-from app.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
-from app.strategies.base import AccountingSystemStrategy
+from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
+from accounting.strategies.base import AccountingSystemStrategy
 
 
 class AccountingSystem(str, Enum):

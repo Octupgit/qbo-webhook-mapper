@@ -1,4 +1,4 @@
-from app.exceptions.strategy_exceptions import (
+from accounting.exceptions.strategy_exceptions import (
     InvoiceCreationError,
     StrategyError,
     TokenRefreshError,

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.utils.oauth_state import generate_state, verify_state
+from accounting.utils.oauth_state import generate_state, verify_state
 
 
 def test_generate_state():
@@ -43,7 +43,7 @@ def test_verify_state_invalid_format():
 
 
 def test_verify_state_expired():
-    with patch("app.utils.oauth_state.datetime") as mock_datetime:
+    with patch("accounting.utils.oauth_state.datetime") as mock_datetime:
         past_time = datetime.now(timezone.utc) - timedelta(minutes=15)
         mock_datetime.now.return_value = past_time
 
