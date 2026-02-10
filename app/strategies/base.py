@@ -3,6 +3,14 @@ from typing import Any
 
 from starlette.requests import Request
 
+from app.models import (
+    BaseAuthResult,
+    BaseInvoiceData,
+    BaseInvoiceResult,
+    BaseTokenResult,
+    BaseWebhookEvent,
+)
+
 
 class AccountingSystemStrategy(ABC):
 
@@ -11,20 +19,20 @@ class AccountingSystemStrategy(ABC):
         """Generate OAuth authorization URL for the accounting system."""
 
     @abstractmethod
-    async def handle_callback(self, request: Request, **kwargs: Any) -> dict[str, Any]:
+    async def handle_callback(self, request: Request, **kwargs: Any) -> BaseAuthResult:
         """
         Handle OAuth callback and return connection result.
 
         Each strategy extracts what it needs from the request object
-        (query params, headers, body) and returns its own result structure.
+        (query params, headers, body) and returns its own AuthResult subclass.
         """
 
     @abstractmethod
-    async def refresh_token(self, token_data: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    async def refresh_token(self, token_data: dict[str, Any], **kwargs: Any) -> BaseTokenResult:
         """Get a valid access token, refreshing if necessary."""
 
     @abstractmethod
-    async def create_invoice(self, invoice_data: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    async def create_invoice(self, invoice_data: BaseInvoiceData, **kwargs: Any) -> BaseInvoiceResult:
         """Create an invoice in the accounting system."""
 
     @abstractmethod
@@ -36,7 +44,7 @@ class AccountingSystemStrategy(ABC):
     @abstractmethod
     async def process_webhook_event(
         self, event_data: dict[str, Any], **kwargs: Any
-    ) -> list[dict[str, Any]]:
+    ) -> list[BaseWebhookEvent]:
         """Process webhook event and return normalized event data."""
 
     @property
