@@ -57,7 +57,7 @@ class AccountingSystemFactory:
     @classmethod
     def register_strategy(
         cls, accounting_system: AccountingSystem, strategy_class: type[AccountingSystemStrategy]
-    ):
+    ) -> None:
         """
         Register a new accounting system strategy.
 
