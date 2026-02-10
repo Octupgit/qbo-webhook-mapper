@@ -2,7 +2,6 @@ from enum import Enum
 
 from app.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
 from app.strategies.base import AccountingSystemStrategy
-from app.strategies.quickbooks_strategy import QuickBooksStrategy
 
 
 class AccountingSystem(str, Enum):
@@ -22,9 +21,7 @@ class AccountingSystemFactory:
         result = await strategy.create_invoice(invoice, token, realm_id)
     """
 
-    _strategies: dict[AccountingSystem, type[AccountingSystemStrategy]] = {
-        AccountingSystem.QUICKBOOKS: QuickBooksStrategy,
-    }
+    _strategies: dict[AccountingSystem, type[AccountingSystemStrategy]] = {}
 
     @classmethod
     def get_strategy(cls, accounting_system: AccountingSystem | str) -> AccountingSystemStrategy:
