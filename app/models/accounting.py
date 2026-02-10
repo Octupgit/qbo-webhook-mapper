@@ -4,21 +4,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class AuthUrlResult(BaseModel):
-    """Result from generating an OAuth authorization URL."""
-
-    url: str = Field(..., description="The OAuth authorization URL to redirect the user to")
-
-
-class AuthCallbackResult(BaseModel):
-    """Result from handling OAuth callback and exchanging code for tokens."""
-
-    access_token: str = Field(..., description="OAuth access token")
-    refresh_token: str = Field(..., description="OAuth refresh token")
-    expires_in: int = Field(..., description="Token expiration time in seconds")
-    realm_id: str = Field(..., description="Accounting system company/realm identifier")
-
-
 class TokenResult(BaseModel):
     """Result from getting or refreshing a token."""
 
