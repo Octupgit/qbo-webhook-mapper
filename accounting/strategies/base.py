@@ -13,7 +13,6 @@ from accounting.models import (
 
 
 class AccountingSystemStrategy(ABC):
-
     @abstractmethod
     async def get_authorization_url(self, **kwargs: Any) -> str:
         """Generate OAuth authorization URL for the accounting system."""
@@ -36,15 +35,11 @@ class AccountingSystemStrategy(ABC):
         """Create an invoice in the accounting system."""
 
     @abstractmethod
-    async def verify_webhook_signature(
-        self, payload: bytes, headers: dict[str, str], **kwargs: Any
-    ) -> bool:
+    async def verify_webhook_signature(self, payload: bytes, headers: dict[str, str], **kwargs: Any) -> bool:
         """Verify webhook signature from the accounting system."""
 
     @abstractmethod
-    async def process_webhook_event(
-        self, event_data: dict[str, Any], **kwargs: Any
-    ) -> list[BaseWebhookEvent]:
+    async def process_webhook_event(self, event_data: dict[str, Any], **kwargs: Any) -> list[BaseWebhookEvent]:
         """Process webhook event and return normalized event data."""
 
     @property

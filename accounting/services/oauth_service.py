@@ -3,7 +3,6 @@ from accounting.utils.oauth_state import generate_state
 
 
 class OAuthService:
-
     async def get_authorization_url(self, accounting_system: str, partner_id: str) -> str:
         strategy = AccountingSystemFactory.get_strategy(accounting_system)
 
