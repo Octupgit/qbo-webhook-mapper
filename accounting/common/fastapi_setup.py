@@ -1,7 +1,7 @@
 import time
 import uuid
 
-from app.common.logging.json_logger import setup_logger
+from accounting.common.logging.json_logger import setup_logger
 
 LOGGER = setup_logger()
 
