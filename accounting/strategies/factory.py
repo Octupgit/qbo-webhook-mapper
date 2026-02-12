@@ -1,19 +1,13 @@
-from enum import Enum
-
 from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
+from accounting.models.accounting import AccountingSystem
 from accounting.strategies.base import AccountingSystemStrategy
-
-
-class AccountingSystem(str, Enum):
-    """Supported accounting systems."""
-
-    QUICKBOOKS = "quickbooks"
-    XERO = "xero"
-    SAGE = "sage"
+from accounting.strategies.quickbooks import QuickBooksAuthStrategy
 
 
 class AccountingSystemFactory:
-    _strategies: dict[AccountingSystem, type[AccountingSystemStrategy]] = {}
+    _strategies: dict[AccountingSystem, type[AccountingSystemStrategy]] = {
+        AccountingSystem.QUICKBOOKS: QuickBooksAuthStrategy,
+    }
 
     @classmethod
     def get_strategy(cls, accounting_system: AccountingSystem | str) -> AccountingSystemStrategy:
@@ -34,11 +28,6 @@ class AccountingSystemFactory:
 
         return strategy_class()
 
-    @classmethod
-    def register_strategy(
-        cls, accounting_system: AccountingSystem, strategy_class: type[AccountingSystemStrategy]
-    ) -> None:
-        cls._strategies[accounting_system] = strategy_class
 
     @classmethod
     def supported_systems(cls) -> list[str]:
