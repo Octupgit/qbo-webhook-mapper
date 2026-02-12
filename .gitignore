@@ -8,7 +8,7 @@ dist/
 build/
 
 # Environment files
-.env
+*.env
 .env.local
 .env.*.local
 
@@ -36,3 +36,20 @@ coverage/
 # Cache
 .cache/
 .parcel-cache/
+
+*__pycache__/
+*.pytest_cache/
+*.ruff_cache/
+*.mypy_cache/
+*.coverage/
+*.coverage.*
+*.cache/
+*.tox/
+*.nox/
+*.pants.d/
+*.git/
+*.gitignore/
+
+*.pyc
+*venv/
+*.venv/
