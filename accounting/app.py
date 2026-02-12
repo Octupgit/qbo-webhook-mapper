@@ -1,17 +1,15 @@
-import os
-
 import uvicorn
 
 from accounting.common.fastapi_setup import setup_fastapi_app
 from accounting.common.logging.json_logger import setup_logger
-from accounting.routes import routers
 from accounting.config import settings
+from accounting.routes import routers
 
 LOGGER = setup_logger()
 
-if __name__ == "__main__":
-    app, port = setup_fastapi_app("accounting-integration", routers, settings.PORT)
+app, port = setup_fastapi_app("accounting-integration", routers, settings.PORT)
 
+if __name__ == "__main__":
     LOGGER.info(f"Accounting Integration Service is running on port {port}")
 
     uvicorn.run(
