@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import declarative_base
 
 from accounting.config import settings
+from accounting.db.utils import build_database_url
 
 metadata = MetaData(schema="accounting_integrations")
 Base = declarative_base(metadata=metadata)
@@ -12,9 +13,10 @@ Base = declarative_base(metadata=metadata)
 engine = None
 AsyncSessionLocal = None
 
-if settings.DATABASE_URL:
+db_url = build_database_url(settings)
+if db_url:
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        db_url,
         echo=settings.ENVIRONMENT == "development",
         pool_pre_ping=True,
         pool_size=5,
