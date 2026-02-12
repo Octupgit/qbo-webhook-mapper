@@ -49,3 +49,7 @@ coverage/
 *.pants.d/
 *.git/
 *.gitignore/
+
+*.pyc
+*venv/
+*.venv/
