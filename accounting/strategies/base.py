@@ -3,7 +3,7 @@ from typing import Any
 
 from starlette.requests import Request
 
-from app.models import (
+from accounting.models import (
     BaseAuthResult,
     BaseInvoiceData,
     BaseInvoiceResult,
