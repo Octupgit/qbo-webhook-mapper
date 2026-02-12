@@ -1,6 +1,6 @@
 from enum import Enum
 
-from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
+from accounting.exceptions import UnsupportedAccountingSystemError
 from accounting.strategies.base import AccountingSystemStrategy
 
 
