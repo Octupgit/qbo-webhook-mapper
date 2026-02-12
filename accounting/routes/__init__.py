@@ -1,3 +1,3 @@
-from accounting.routes.oauth import router as oauth_router
+from accounting.routes.auth import router as auth_router
 
-routers = [oauth_router]
+routers = [auth_router]
