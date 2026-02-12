@@ -13,7 +13,6 @@ class AccountingSystem(str, Enum):
 
 
 class AccountingSystemFactory:
-
     _strategies: dict[AccountingSystem, type[AccountingSystemStrategy]] = {}
 
     @classmethod
