@@ -5,7 +5,7 @@ from accounting.common.logging.json_logger import setup_logger
 from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
 from accounting.services.oauth_service import OAuthService
 
-router = APIRouter(prefix="/api/v1/oauth", tags=["OAuth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 logger = setup_logger()
 
 

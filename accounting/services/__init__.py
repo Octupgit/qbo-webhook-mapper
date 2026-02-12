@@ -1,3 +1,3 @@
-from accounting.services.oauth_service import OAuthService
+from accounting.services.auth import AuthService
 
-__all__ = ["OAuthService"]
+__all__ = ["AuthService"]
