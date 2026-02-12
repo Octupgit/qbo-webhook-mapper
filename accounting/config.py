@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     QBO_CLIENT_SECRET: str = ""
     QBO_ENVIRONMENT: str = "sandbox"
     QBO_REDIRECT_URI: str = ""
-    OCTUP_REDIRECT_URI: str = ""
 
 
 settings = Settings()
