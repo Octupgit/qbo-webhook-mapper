@@ -1,5 +1,5 @@
 from accounting.exceptions.strategy_exceptions import UnsupportedAccountingSystemError
-from accounting.models.accounting import AccountingSystem
+from accounting.models import AccountingSystem
 from accounting.strategies.base import AccountingSystemStrategy
 from accounting.strategies.quickbooks import QuickBooksAuthStrategy
 

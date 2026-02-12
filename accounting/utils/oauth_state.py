@@ -7,14 +7,16 @@ from typing import Any
 from accounting.config import settings
 
 
-def generate_state(partner_id: str, accounting_system: str) -> str:
+def generate_state(partner_id: str, accounting_system: str, callback_url: str | None = None) -> str:
     timestamp = int(datetime.now(UTC).timestamp())
 
-    payload = {
+    payload: dict[str, Any] = {
         "partner_id": partner_id,
         "accounting_system": accounting_system,
         "timestamp": timestamp,
     }
+    if callback_url:
+        payload["callback_url"] = callback_url
 
     payload_json = json.dumps(payload, separators=(",", ":"))
     payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode()

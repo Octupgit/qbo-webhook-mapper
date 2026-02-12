@@ -4,6 +4,7 @@ from accounting.models.accounting import (
     BaseInvoiceResult,
     BaseTokenResult,
     BaseWebhookEvent,
+    AccountingSystem,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "BaseInvoiceData",
     "BaseInvoiceResult",
     "BaseWebhookEvent",
+    "AccountingSystem",
 ]
