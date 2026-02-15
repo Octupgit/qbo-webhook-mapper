@@ -14,7 +14,11 @@ class Settings(BaseSettings):
     QBO_CLIENT_SECRET: str = ""
     QBO_ENVIRONMENT: str = "sandbox"
     QBO_REDIRECT_URI: str = ""
-    OCTUP_API_URL: str = "https://api.octup.com"
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
+    REDIS_USERNAME: str = "default"
+    REDIS_DB: int = 1
 
 
 settings = Settings()
