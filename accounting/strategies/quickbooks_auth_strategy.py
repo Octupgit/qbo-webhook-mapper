@@ -1,4 +1,8 @@
+import asyncio
+
 import httpx
+from intuitlib.client import AuthClient
+from intuitlib.enums import Scopes
 
 from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
@@ -13,35 +17,33 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
         self.environment = settings.QBO_ENVIRONMENT
         self._log = setup_logger()
 
+        self.auth_client = AuthClient(
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            redirect_uri=self.redirect_uri,
+            environment=self.environment,
+        )
+
         if self.environment == "production":
             self.api_base_url = "https://quickbooks.api.intuit.com"
         else:
             self.api_base_url = "https://sandbox-quickbooks.api.intuit.com"
 
     def get_authorization_url(self, state: str) -> str:
-        params = {
-            "client_id": self.client_id,
-            "redirect_uri": self.redirect_uri,
-            "response_type": "code",
-            "scope": "com.intuit.quickbooks.accounting",
-            "state": state,
-        }
-        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-        return f"https://appcenter.intuit.com/connect/oauth2?{query_string}"
+        return self.auth_client.get_authorization_url([Scopes.ACCOUNTING], state_token=state)
 
     async def exchange_code_for_tokens(self, code: str, realm_id: str | None = None) -> tuple[str, str]:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
-                    headers={"Accept": "application/json"},
-                    data={"grant_type": "authorization_code", "code": code, "redirect_uri": self.redirect_uri},
-                    auth=(self.client_id, self.client_secret),
-                    timeout=10.0,
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data["access_token"], data["refresh_token"]
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.auth_client.get_bearer_token, code, realm_id)
+
+            access_token = self.auth_client.access_token
+            refresh_token = self.auth_client.refresh_token
+
+            if not access_token or not refresh_token:
+                raise ValueError("Failed to obtain tokens from Intuit OAuth")
+
+            return access_token, refresh_token
         except Exception as e:
             self._log.error(f"Token exchange failed: {str(e)}")
             raise
@@ -81,17 +83,18 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
 
     async def refresh_access_token(self, refresh_token: str) -> tuple[str, str]:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
-                    headers={"Accept": "application/json"},
-                    data={"grant_type": "refresh_token", "refresh_token": refresh_token},
-                    auth=(self.client_id, self.client_secret),
-                    timeout=10.0,
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data["access_token"], data["refresh_token"]
+            self.auth_client.refresh_token = refresh_token
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.auth_client.refresh)
+
+            access_token = self.auth_client.access_token
+            new_refresh_token = self.auth_client.refresh_token
+
+            if not access_token or not new_refresh_token:
+                raise ValueError("Failed to refresh tokens from Intuit OAuth")
+
+            return access_token, new_refresh_token
         except Exception as e:
             self._log.error(f"Token refresh failed: {str(e)}")
             raise
