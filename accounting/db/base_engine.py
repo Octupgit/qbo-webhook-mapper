@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import functools
 from typing import Any
 
 import tenacity
@@ -15,12 +13,15 @@ from accounting.config import settings
 
 engines: dict[str, AsyncEngine] = {}
 
+
 class Base(DeclarativeBase):
     pass
+
 
 class RetrySettings:
     stop: tenacity.stop.stop_base = tenacity.stop_after_attempt(5)
     wait: tenacity.wait.wait_base = tenacity.wait_exponential(min=2, max=10)
+
 
 def _log_after_attempt(retry_state: tenacity.RetryCallState):
     _log = setup_logger()
@@ -29,6 +30,7 @@ def _log_after_attempt(retry_state: tenacity.RetryCallState):
         retry_state.attempt_number,
         retry_state.outcome.exception(),
     )
+
 
 class BaseSQLEngine:
     retry_settings = RetrySettings()
@@ -45,10 +47,7 @@ class BaseSQLEngine:
         try:
             if self._engine is None:
                 self._engine = create_async_engine(
-                    self.url,
-                    echo=settings.ENVIRONMENT == "development",
-                    pool_pre_ping=True,
-                    pool_recycle=3600
+                    self.url, echo=settings.ENVIRONMENT == "development", pool_pre_ping=True, pool_recycle=3600
                 )
                 self._log.debug("SQL engine initialized")
                 engines[self.url] = self._engine

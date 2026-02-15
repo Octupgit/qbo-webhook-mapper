@@ -1,12 +1,15 @@
 from accounting.common.cache.cache_handler_base import CacheHandlerBase
-from accounting.models.session import SessionData
 from accounting.common.logging.json_logger import setup_logger
+from accounting.models.session import SessionData
+
 
 class UserTokenNotFoundException(Exception):
     pass
 
+
 class InvalidSessionError(Exception):
     pass
+
 
 class UserSessionCache(CacheHandlerBase):
     _log = setup_logger()

@@ -1,33 +1,40 @@
-from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field, HttpUrl
+
 
 class SystemDTO(BaseModel):
     id: str
     name: str
-    logo_url: str
+    text: str
     enabled: bool
+
 
 class SystemsResponseDTO(BaseModel):
     systems: list[SystemDTO]
+
 
 class AuthenticateRequestDTO(BaseModel):
     accounting_system: str = Field(..., pattern="^(quickbooks|xero)$")
     callback_uri: HttpUrl = Field(..., description="URL to redirect after OAuth")
 
+
 class AuthenticateResponseDTO(BaseModel):
     authorization_url: HttpUrl
+
 
 class CallbackQueryDTO(BaseModel):
     code: str
     state: str
-    realmId: Optional[str] = None
+    realmId: str | None = None
+
 
 class CallbackResponseDTO(BaseModel):
     status: str
-    integration_id: Optional[UUID] = None
-    error_reason: Optional[str] = None
+    integration_id: UUID | None = None
+    error_reason: str | None = None
+
 
 class AccountingIntegrationDTO(BaseModel):
     integration_id: UUID
@@ -38,7 +45,7 @@ class AccountingIntegrationDTO(BaseModel):
     is_active: bool
     status: str
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True

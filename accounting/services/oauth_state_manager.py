@@ -1,11 +1,12 @@
-from cryptography.fernet import Fernet
 import json
-import time
 import secrets
-from typing import Dict
+import time
 
-from accounting.config import settings
+from cryptography.fernet import Fernet
+
 from accounting.common.logging.json_logger import setup_logger
+from accounting.config import settings
+
 
 class OAuthStateManager:
     def __init__(self):
@@ -18,13 +19,13 @@ class OAuthStateManager:
             "partner_id": partner_id,
             "callback_uri": callback_uri,
             "nonce": secrets.token_urlsafe(16),
-            "timestamp": int(time.time())
+            "timestamp": int(time.time()),
         }
         json_data = json.dumps(data)
         encrypted = self.fernet.encrypt(json_data.encode())
         return encrypted.decode()
 
-    def validate_state(self, state: str) -> Dict:
+    def validate_state(self, state: str) -> dict:
         try:
             decrypted = self.fernet.decrypt(state.encode())
             data = json.loads(decrypted.decode())

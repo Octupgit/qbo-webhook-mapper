@@ -1,14 +1,13 @@
-import pytest
 import time
+
+import pytest
 from accounting.services.oauth_state_manager import OAuthStateManager
+
 
 class TestOAuthStateManager:
     def test_generate_state_creates_valid_encrypted_string(self):
         manager = OAuthStateManager()
-        state = manager.generate_state(
-            partner_id=123,
-            callback_uri="https://octup.com/callback"
-        )
+        state = manager.generate_state(partner_id=123, callback_uri="https://octup.com/callback")
 
         assert isinstance(state, str)
         assert len(state) > 0
@@ -30,10 +29,7 @@ class TestOAuthStateManager:
         manager = OAuthStateManager()
         manager.ttl_seconds = 1
 
-        state = manager.generate_state(
-            partner_id=789,
-            callback_uri="https://octup.com/callback"
-        )
+        state = manager.generate_state(partner_id=789, callback_uri="https://octup.com/callback")
 
         time.sleep(2)
 

@@ -1,12 +1,13 @@
 import json
 from typing import Any
-from redis import Redis, ConnectionError
 
 from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
+from redis import ConnectionError, Redis
 
 TEN_MINUTES = 600
 REDIS_DATABASES = {"LOCAL": "1", "DEV": "2", "STG": "3", "PROD": "4"}
+
 
 class CacheHandlerBase:
     _log = setup_logger()

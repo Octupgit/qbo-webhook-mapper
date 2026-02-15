@@ -1,6 +1,7 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field
-from typing import Optional
+
 
 class User(BaseModel):
     id: str | int
@@ -13,6 +14,7 @@ class User(BaseModel):
     class Config:
         populate_by_name = True
 
+
 class Session(BaseModel):
     id: str | int = Field(alias="session_id")
     email: str = Field(alias="user_id")
@@ -21,6 +23,7 @@ class Session(BaseModel):
 
     class Config:
         populate_by_name = True
+
 
 class SessionData(BaseModel):
     token: str

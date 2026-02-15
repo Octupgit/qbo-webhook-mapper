@@ -1,8 +1,11 @@
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, Text
-from sqlalchemy.dialects.mysql import CHAR
-from datetime import datetime
-from .base_engine import Base
 import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy.dialects.mysql import CHAR
+
+from .base_engine import Base
+
 
 class AccountingIntegration(Base):
     __tablename__ = "accounting_integrations"

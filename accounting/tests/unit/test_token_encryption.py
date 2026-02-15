@@ -1,6 +1,7 @@
 import pytest
 from accounting.services.token_encryption import TokenEncryption
 
+
 class TestTokenEncryption:
     def test_encrypt_returns_different_ciphertext_for_same_token(self):
         encryption = TokenEncryption()

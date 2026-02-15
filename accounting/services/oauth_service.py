@@ -30,6 +30,7 @@ class CallbackContext:
     realm_id: str | None
     access_token: str
 
+
 class OAuthService:
     def __init__(self):
         self.state_manager = OAuthStateManager()
@@ -37,28 +38,14 @@ class OAuthService:
         self.datastore = IntegrationDataStore()
         self._log = setup_logger()
 
-        self.strategies = {
-            "quickbooks": QuickBooksAuthStrategy()
-        }
+        self.strategies = {"quickbooks": QuickBooksAuthStrategy()}
 
     async def get_systems(self) -> SystemsResponseDTO:
-        systems = [
-            SystemDTO(
-                id="quickbooks",
-                name="QuickBooks Online",
-                logo_url="https://cdn.octup.com/logos/quickbooks.png",
-                enabled=True
-            )
-        ]
+        systems = [SystemDTO(id="quickbooks", name="QuickBooks Online", text="Connect to QuickBooks", enabled=True)]
         return SystemsResponseDTO(systems=systems)
 
-    async def initiate_oauth(
-        self, partner_id: int, request: AuthenticateRequestDTO
-    ) -> AuthenticateResponseDTO:
-        state = self.state_manager.generate_state(
-            partner_id=partner_id,
-            callback_uri=str(request.callback_uri)
-        )
+    async def initiate_oauth(self, partner_id: int, request: AuthenticateRequestDTO) -> AuthenticateResponseDTO:
+        state = self.state_manager.generate_state(partner_id=partner_id, callback_uri=str(request.callback_uri))
 
         strategy = self.strategies.get(request.accounting_system)
         if not strategy:
@@ -66,10 +53,7 @@ class OAuthService:
 
         auth_url = strategy.get_authorization_url(state)
 
-        self._log.info(
-            f"OAuth initiated: partner_id={partner_id}, "
-            f"system={request.accounting_system}"
-        )
+        self._log.info(f"OAuth initiated: partner_id={partner_id}, system={request.accounting_system}")
 
         return AuthenticateResponseDTO(authorization_url=cast(HttpUrl, auth_url))
 
@@ -87,10 +71,7 @@ class OAuthService:
             if not callback.realmId:
                 raise ValueError("Missing realmId for OAuth callback")
 
-            access_token, refresh_token = await strategy.exchange_code_for_tokens(
-                callback.code,
-                callback.realmId
-            )
+            access_token, refresh_token = await strategy.exchange_code_for_tokens(callback.code, callback.realmId)
 
             encrypted_access = self.token_encryption.encrypt(access_token)
             encrypted_refresh = self.token_encryption.encrypt(refresh_token)
@@ -101,42 +82,29 @@ class OAuthService:
                 realm_id=callback.realmId,
                 company_name=self._default_company_name(accounting_system),
                 access_token=encrypted_access,
-                refresh_token=encrypted_refresh
+                refresh_token=encrypted_refresh,
             )
 
             self._log.info(
-                f"Integration created: id={integration_id}, "
-                f"partner={partner_id}, system={accounting_system}"
+                f"Integration created: id={integration_id}, partner={partner_id}, system={accounting_system}"
             )
 
-            response = CallbackResponseDTO(
-                status="success",
-                integration_id=integration_id,
-                error_reason=None
-            )
+            response = CallbackResponseDTO(status="success", integration_id=integration_id, error_reason=None)
             context = CallbackContext(
                 integration_id=integration_id,
                 partner_id=partner_id,
                 accounting_system=accounting_system,
                 realm_id=callback.realmId,
-                access_token=access_token
+                access_token=access_token,
             )
             return response, context
 
         except ValueError as e:
             self._log.error(f"Callback validation error: {str(e)}")
-            return CallbackResponseDTO(
-                status="error",
-                integration_id=None,
-                error_reason=str(e)
-            ), None
+            return CallbackResponseDTO(status="error", integration_id=None, error_reason=str(e)), None
         except Exception as e:
             self._log.exception(f"Callback processing error: {str(e)}")
-            return CallbackResponseDTO(
-                status="error",
-                integration_id=None,
-                error_reason="Internal error"
-            ), None
+            return CallbackResponseDTO(status="error", integration_id=None, error_reason="Internal error"), None
 
     async def process_initial_sync(self, context: CallbackContext) -> None:
         strategy = self.strategies.get(context.accounting_system)
@@ -148,10 +116,7 @@ class OAuthService:
         company_name = self._default_company_name(context.accounting_system)
 
         try:
-            company_name = await strategy.fetch_company_info(
-                context.access_token,
-                context.realm_id
-            )
+            company_name = await strategy.fetch_company_info(context.access_token, context.realm_id)
             if company_name:
                 await self.datastore.update_company_name(context.integration_id, company_name)
         except Exception as e:
@@ -159,10 +124,7 @@ class OAuthService:
             errors.append("company_info_fetch_failed")
 
         try:
-            initial_data = await strategy.fetch_initial_data(
-                context.access_token,
-                context.realm_id
-            )
+            initial_data = await strategy.fetch_initial_data(context.access_token, context.realm_id)
             accounting_clients = self._extract_customers(initial_data)
         except Exception as e:
             self._log.error(f"Initial data fetch failed: {str(e)}")
@@ -179,9 +141,9 @@ class OAuthService:
                 "partner_id": context.partner_id,
                 "status": status,
                 "sync_completed_at": datetime.utcnow().isoformat(),
-                "errors": errors
+                "errors": errors,
             },
-            "accounting_clients": accounting_clients
+            "accounting_clients": accounting_clients,
         }
 
         await self._post_integration_completed(payload)
@@ -214,11 +176,7 @@ class OAuthService:
             if isinstance(parent_data, dict):
                 parent_ref = parent_data.get("value")
             results.append(
-                {
-                    "accounting_client_id": str(customer_id),
-                    "display_name": display_name,
-                    "parent_ref": parent_ref
-                }
+                {"accounting_client_id": str(customer_id), "display_name": display_name, "parent_ref": parent_ref}
             )
         return results
 

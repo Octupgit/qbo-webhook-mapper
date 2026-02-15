@@ -1,9 +1,11 @@
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-import os
 import base64
+import os
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from accounting.config import settings
+
 
 class TokenEncryption:
     def __init__(self):
@@ -11,11 +13,7 @@ class TokenEncryption:
 
     def encrypt(self, token: str) -> str:
         iv = os.urandom(16)
-        cipher = Cipher(
-            algorithms.AES(self.key),
-            modes.CBC(iv),
-            backend=default_backend()
-        )
+        cipher = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
         encryptor = cipher.encryptor()
 
         padded = self._pad(token.encode())
@@ -28,11 +26,7 @@ class TokenEncryption:
         iv = data[:16]
         encrypted = data[16:]
 
-        cipher = Cipher(
-            algorithms.AES(self.key),
-            modes.CBC(iv),
-            backend=default_backend()
-        )
+        cipher = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
         decryptor = cipher.decryptor()
         decrypted = decryptor.update(encrypted) + decryptor.finalize()
 
