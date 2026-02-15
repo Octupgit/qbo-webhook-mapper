@@ -40,104 +40,62 @@ class SystemsDTO(DtoModel):
         return {"systems": [system.model_dump() for system in self.systems]}
 
 
-class AuthenticateRequestDTO(DtoModel):
-    """DTO for OAuth authentication initiation request"""
+class AuthenticateDTO(DtoModel):
+    """DTO for OAuth authentication flow (request + response)"""
 
     accounting_system: str = Field(..., pattern="^(quickbooks|xero)$")
     callback_uri: HttpUrl = Field(..., description="URL to redirect after OAuth")
+    authorization_url: HttpUrl | None = None
 
     @classmethod
     def from_db_rows(cls, *args, **kwargs):
-        raise NotImplementedError("Authentication requests are not stored in DB")
+        raise NotImplementedError("Authentication is not stored in DB")
 
     @classmethod
     def from_db_row(cls, *args, **kwargs):
-        raise NotImplementedError("Authentication requests are not stored in DB")
+        raise NotImplementedError("Authentication is not stored in DB")
 
     def to_db_rows(self, *args, **kwargs):
-        raise NotImplementedError("Authentication requests are not persisted to DB")
+        raise NotImplementedError("Authentication is not persisted to DB")
 
     @classmethod
-    def from_request(cls, accounting_system: str, callback_uri: str) -> "AuthenticateRequestDTO":
+    def from_request(cls, accounting_system: str, callback_uri: str) -> "AuthenticateDTO":
         return cls(accounting_system=accounting_system, callback_uri=callback_uri)
 
-    def to_response(self, *args, **kwargs):
-        raise NotImplementedError("Authentication requests do not have response format")
-
-
-class AuthenticateResponseDTO(DtoModel):
-    """DTO for OAuth authentication response with authorization URL"""
-
-    authorization_url: HttpUrl
-
-    @classmethod
-    def from_db_rows(cls, *args, **kwargs):
-        raise NotImplementedError("Authentication responses are not stored in DB")
-
-    @classmethod
-    def from_db_row(cls, *args, **kwargs):
-        raise NotImplementedError("Authentication responses are not stored in DB")
-
-    def to_db_rows(self, *args, **kwargs):
-        raise NotImplementedError("Authentication responses are not persisted to DB")
-
-    @classmethod
-    def from_request(cls, *args, **kwargs):
-        raise NotImplementedError("Authentication responses are not created from requests")
-
     def to_response(self, *args, **kwargs) -> dict:
+        if not self.authorization_url:
+            raise ValueError("Authorization URL not set")
         return {"authorization_url": str(self.authorization_url)}
 
 
-class CallbackQueryDTO(DtoModel):
-    """DTO for OAuth callback query parameters"""
+class CallbackDTO(DtoModel):
+    """DTO for OAuth callback flow (query + response)"""
 
     code: str
     state: str
     realmId: str | None = None
-
-    @classmethod
-    def from_db_rows(cls, *args, **kwargs):
-        raise NotImplementedError("Callback queries are not stored in DB")
-
-    @classmethod
-    def from_db_row(cls, *args, **kwargs):
-        raise NotImplementedError("Callback queries are not stored in DB")
-
-    def to_db_rows(self, *args, **kwargs):
-        raise NotImplementedError("Callback queries are not persisted to DB")
-
-    @classmethod
-    def from_request(cls, code: str, state: str, realm_id: str | None = None) -> "CallbackQueryDTO":
-        return cls(code=code, state=state, realmId=realm_id)
-
-    def to_response(self, *args, **kwargs):
-        raise NotImplementedError("Callback queries do not have response format")
-
-
-class CallbackResponseDTO(DtoModel):
-    """DTO for OAuth callback response"""
-
-    status: str
+    status: str | None = None
     integration_id: UUID | None = None
     error_reason: str | None = None
 
     @classmethod
     def from_db_rows(cls, *args, **kwargs):
-        raise NotImplementedError("Callback responses are not stored in DB")
+        raise NotImplementedError("Callbacks are not stored in DB")
 
     @classmethod
     def from_db_row(cls, *args, **kwargs):
-        raise NotImplementedError("Callback responses are not stored in DB")
+        raise NotImplementedError("Callbacks are not stored in DB")
 
     def to_db_rows(self, *args, **kwargs):
-        raise NotImplementedError("Callback responses are not persisted to DB")
+        raise NotImplementedError("Callbacks are not persisted to DB")
 
     @classmethod
-    def from_request(cls, *args, **kwargs):
-        raise NotImplementedError("Callback responses are not created from requests")
+    def from_request(cls, code: str, state: str, realm_id: str | None = None) -> "CallbackDTO":
+        return cls(code=code, state=state, realmId=realm_id)
 
     def to_response(self, *args, **kwargs) -> dict:
+        if not self.status:
+            raise ValueError("Status not set")
         response = {"status": self.status}
         if self.integration_id:
             response["integration_id"] = str(self.integration_id)

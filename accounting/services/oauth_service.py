@@ -10,10 +10,8 @@ from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 from accounting.db import IntegrationDataStore
 from accounting.models.oauth import (
-    AuthenticateRequestDTO,
-    AuthenticateResponseDTO,
-    CallbackQueryDTO,
-    CallbackResponseDTO,
+    AuthenticateDTO,
+    CallbackDTO,
     SystemInfo,
     SystemsDTO,
 )
@@ -44,34 +42,37 @@ class OAuthService:
         systems = [SystemInfo(id="quickbooks", name="QuickBooks Online", text="Connect to QuickBooks", enabled=True)]
         return SystemsDTO(systems=systems)
 
-    async def initiate_oauth(self, partner_id: int, request: AuthenticateRequestDTO) -> AuthenticateResponseDTO:
-        state = self.state_manager.generate_state(partner_id=partner_id, callback_uri=str(request.callback_uri))
+    async def initiate_oauth(self, partner_id: int, auth_dto: AuthenticateDTO) -> AuthenticateDTO:
+        state = self.state_manager.generate_state(partner_id=partner_id, callback_uri=str(auth_dto.callback_uri))
 
-        strategy = self.strategies.get(request.accounting_system)
+        strategy = self.strategies.get(auth_dto.accounting_system)
         if not strategy:
-            raise ValueError(f"Unsupported accounting system: {request.accounting_system}")
+            raise ValueError(f"Unsupported accounting system: {auth_dto.accounting_system}")
 
         auth_url = strategy.get_authorization_url(state)
 
-        self._log.info(f"OAuth initiated: partner_id={partner_id}, system={request.accounting_system}")
+        self._log.info(f"OAuth initiated: partner_id={partner_id}, system={auth_dto.accounting_system}")
 
-        return AuthenticateResponseDTO(authorization_url=cast(HttpUrl, auth_url))
+        auth_dto.authorization_url = cast(HttpUrl, auth_url)
+        return auth_dto
 
     async def handle_callback(
-        self, callback: CallbackQueryDTO, accounting_system: str
-    ) -> tuple[CallbackResponseDTO, CallbackContext | None]:
+        self, callback_dto: CallbackDTO, accounting_system: str
+    ) -> tuple[CallbackDTO, CallbackContext | None]:
         try:
-            state_data = self.state_manager.validate_state(callback.state)
+            state_data = self.state_manager.validate_state(callback_dto.state)
             partner_id = state_data["partner_id"]
 
             strategy = self.strategies.get(accounting_system)
             if not strategy:
                 raise ValueError(f"Unsupported accounting system: {accounting_system}")
 
-            if not callback.realmId:
+            if not callback_dto.realmId:
                 raise ValueError("Missing realmId for OAuth callback")
 
-            access_token, refresh_token = await strategy.exchange_code_for_tokens(callback.code, callback.realmId)
+            access_token, refresh_token = await strategy.exchange_code_for_tokens(
+                callback_dto.code, callback_dto.realmId
+            )
 
             encrypted_access = self.token_encryption.encrypt(access_token)
             encrypted_refresh = self.token_encryption.encrypt(refresh_token)
@@ -79,7 +80,7 @@ class OAuthService:
             integration_id = await self.datastore.create_integration(
                 partner_id=partner_id,
                 accounting_system=accounting_system,
-                realm_id=callback.realmId,
+                realm_id=callback_dto.realmId,
                 company_name=self._default_company_name(accounting_system),
                 access_token=encrypted_access,
                 refresh_token=encrypted_refresh,
@@ -89,22 +90,27 @@ class OAuthService:
                 f"Integration created: id={integration_id}, partner={partner_id}, system={accounting_system}"
             )
 
-            response = CallbackResponseDTO(status="success", integration_id=integration_id, error_reason=None)
+            callback_dto.status = "success"
+            callback_dto.integration_id = integration_id
             context = CallbackContext(
                 integration_id=integration_id,
                 partner_id=partner_id,
                 accounting_system=accounting_system,
-                realm_id=callback.realmId,
+                realm_id=callback_dto.realmId,
                 access_token=access_token,
             )
-            return response, context
+            return callback_dto, context
 
         except ValueError as e:
             self._log.error(f"Callback validation error: {str(e)}")
-            return CallbackResponseDTO(status="error", integration_id=None, error_reason=str(e)), None
+            callback_dto.status = "error"
+            callback_dto.error_reason = str(e)
+            return callback_dto, None
         except Exception as e:
             self._log.exception(f"Callback processing error: {str(e)}")
-            return CallbackResponseDTO(status="error", integration_id=None, error_reason="Internal error"), None
+            callback_dto.status = "error"
+            callback_dto.error_reason = "Internal error"
+            return callback_dto, None
 
     async def process_initial_sync(self, context: CallbackContext) -> None:
         strategy = self.strategies.get(context.accounting_system)

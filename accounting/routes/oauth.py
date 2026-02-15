@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from accounting.common.auth.dependencies import AuthenticatedContext
 from accounting.common.logging.json_logger import setup_logger
-from accounting.models.oauth import AuthenticateRequestDTO, CallbackQueryDTO
+from accounting.models.oauth import AuthenticateDTO, CallbackDTO
 from accounting.services.oauth_service import OAuthService
 
 router = APIRouter(prefix="/api/v1/oauth", tags=["oauth"])
@@ -25,9 +25,9 @@ async def authenticate(
 ):
     try:
         service = OAuthService()
-        request = AuthenticateRequestDTO(accounting_system=accounting_system, callback_uri=callback_uri)
-        response = await service.initiate_oauth(authentication_context.partner_id, request)
-        return RedirectResponse(url=response.authorization_url)
+        auth_dto = AuthenticateDTO.from_request(accounting_system=accounting_system, callback_uri=callback_uri)
+        auth_dto = await service.initiate_oauth(authentication_context.partner_id, auth_dto)
+        return RedirectResponse(url=str(auth_dto.authorization_url))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -43,22 +43,22 @@ async def callback(
     realmId: str | None = Query(None, description="QuickBooks realm ID"),
 ):
     try:
-        callback_data = CallbackQueryDTO(code=code, state=state, realmId=realmId)
+        callback_dto = CallbackDTO.from_request(code=code, state=state, realm_id=realmId)
 
         accounting_system = "quickbooks"
 
         service = OAuthService()
-        result, context = await service.handle_callback(callback_data, accounting_system)
+        callback_dto, context = await service.handle_callback(callback_dto, accounting_system)
 
         state_data = service.state_manager.validate_state(state)
         callback_uri = state_data["callback_uri"]
 
-        if result.status == "success":
+        if callback_dto.status == "success":
             if context:
                 background_tasks.add_task(service.process_initial_sync, context)
-            redirect_url = f"{callback_uri}?status=success&integration_id={result.integration_id}"
+            redirect_url = f"{callback_uri}?status=success&integration_id={callback_dto.integration_id}"
         else:
-            redirect_url = f"{callback_uri}?status=error&error_reason={result.error_reason}"
+            redirect_url = f"{callback_uri}?status=error&error_reason={callback_dto.error_reason}"
 
         return RedirectResponse(url=redirect_url)
 
