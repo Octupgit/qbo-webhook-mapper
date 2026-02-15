@@ -1,16 +1,15 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
-from typing import Optional
 
-from accounting.models.oauth import (
-    SystemsResponseDTO,
-    AuthenticateRequestDTO,
-    AuthenticateResponseDTO,
-    CallbackQueryDTO
-)
-from accounting.services.oauth_service import OAuthService
 from accounting.common.auth.dependencies import AuthenticatedContext
 from accounting.common.logging.json_logger import setup_logger
+from accounting.models.oauth import (
+    AuthenticateRequestDTO,
+    AuthenticateResponseDTO,
+    CallbackQueryDTO,
+    SystemsResponseDTO,
+)
+from accounting.services.oauth_service import OAuthService
 
 router = APIRouter(prefix="/api/v1/oauth", tags=["oauth"])
 LOGGER = setup_logger()
@@ -42,9 +41,10 @@ async def authenticate(
 
 @router.get("/callback")
 async def callback(
+    background_tasks: BackgroundTasks,
     code: str = Query(..., description="Authorization code"),
     state: str = Query(..., description="Encrypted state parameter"),
-    realmId: Optional[str] = Query(None, description="QuickBooks realm ID")
+    realmId: str | None = Query(None, description="QuickBooks realm ID")
 ):
     try:
         callback_data = CallbackQueryDTO(
@@ -56,12 +56,14 @@ async def callback(
         accounting_system = "quickbooks"
 
         service = OAuthService()
-        result = await service.handle_callback(callback_data, accounting_system)
+        result, context = await service.handle_callback(callback_data, accounting_system)
 
         state_data = service.state_manager.validate_state(state)
         callback_uri = state_data["callback_uri"]
 
         if result.status == "success":
+            if context:
+                background_tasks.add_task(service.process_initial_sync, context)
             redirect_url = f"{callback_uri}?status=success&integration_id={result.integration_id}"
         else:
             redirect_url = f"{callback_uri}?status=error&error_reason={result.error_reason}"

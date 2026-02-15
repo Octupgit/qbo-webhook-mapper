@@ -83,3 +83,20 @@ class IntegrationDataStore(BaseSQLEngine):
         except Exception as e:
             self._log.error(f"Failed to update tokens for integration_id={integration_id}: {e}")
             raise
+
+    async def update_company_name(
+        self,
+        integration_id: UUID,
+        company_name: str
+    ) -> None:
+        try:
+            stmt = update(AccountingIntegration).where(
+                AccountingIntegration.integration_id == str(integration_id)
+            ).values(
+                company_name=company_name,
+                updated_at=datetime.utcnow()
+            )
+            await self.execute_query(stmt)
+        except Exception as e:
+            self._log.error(f"Failed to update company name for integration_id={integration_id}: {e}")
+            raise

@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     PORT: int = 8080
-    ENVIRONMENT: str = "development"
+    ENV: str = "DEV"
     LOG_LEVEL: str = "INFO"
     ENCRYPTION_KEY: str = ""
     OAUTH_STATE_SECRET: str = ""
@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = ""
     REDIS_USERNAME: str = "default"
     REDIS_DB: int = 1
+    OCTUP_EXTERNAL_BASE_URL: str = ""
 
 
 settings = Settings()

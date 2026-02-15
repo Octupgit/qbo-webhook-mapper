@@ -6,6 +6,7 @@ from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 
 TEN_MINUTES = 600
+REDIS_DATABASES = {"LOCAL": "1", "DEV": "2", "STG": "3", "PROD": "4"}
 
 class CacheHandlerBase:
     _log = setup_logger()
@@ -16,8 +17,7 @@ class CacheHandlerBase:
             port=settings.REDIS_PORT,
             password=settings.REDIS_PASSWORD,
             username=settings.REDIS_USERNAME,
-            db=settings.REDIS_DB,
-            decode_responses=True
+            db=REDIS_DATABASES[settings.ENV],
         )
 
     @property
