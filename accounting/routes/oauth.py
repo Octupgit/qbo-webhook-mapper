@@ -3,21 +3,18 @@ from fastapi.responses import RedirectResponse
 
 from accounting.common.auth.dependencies import AuthenticatedContext
 from accounting.common.logging.json_logger import setup_logger
-from accounting.models.oauth import (
-    AuthenticateRequestDTO,
-    CallbackQueryDTO,
-    SystemsResponseDTO,
-)
+from accounting.models.oauth import AuthenticateRequestDTO, CallbackQueryDTO
 from accounting.services.oauth_service import OAuthService
 
 router = APIRouter(prefix="/api/v1/oauth", tags=["oauth"])
 LOGGER = setup_logger()
 
 
-@router.get("/systems", response_model=SystemsResponseDTO)
+@router.get("/systems")
 async def get_systems(authentication_context: AuthenticatedContext):
     service = OAuthService()
-    return await service.get_systems()
+    systems_dto = await service.get_systems()
+    return systems_dto.to_response()
 
 
 @router.get("/authenticate")

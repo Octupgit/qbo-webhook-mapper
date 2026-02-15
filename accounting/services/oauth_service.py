@@ -14,8 +14,8 @@ from accounting.models.oauth import (
     AuthenticateResponseDTO,
     CallbackQueryDTO,
     CallbackResponseDTO,
-    SystemDTO,
-    SystemsResponseDTO,
+    SystemInfo,
+    SystemsDTO,
 )
 from accounting.services.oauth_state_manager import OAuthStateManager
 from accounting.services.token_encryption import TokenEncryption
@@ -40,9 +40,9 @@ class OAuthService:
 
         self.strategies = {"quickbooks": QuickBooksAuthStrategy()}
 
-    async def get_systems(self) -> SystemsResponseDTO:
-        systems = [SystemDTO(id="quickbooks", name="QuickBooks Online", text="Connect to QuickBooks", enabled=True)]
-        return SystemsResponseDTO(systems=systems)
+    async def get_systems(self) -> SystemsDTO:
+        systems = [SystemInfo(id="quickbooks", name="QuickBooks Online", text="Connect to QuickBooks", enabled=True)]
+        return SystemsDTO(systems=systems)
 
     async def initiate_oauth(self, partner_id: int, request: AuthenticateRequestDTO) -> AuthenticateResponseDTO:
         state = self.state_manager.generate_state(partner_id=partner_id, callback_uri=str(request.callback_uri))
