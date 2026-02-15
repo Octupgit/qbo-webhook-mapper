@@ -5,7 +5,6 @@ from accounting.common.auth.dependencies import AuthenticatedContext
 from accounting.common.logging.json_logger import setup_logger
 from accounting.models.oauth import (
     AuthenticateRequestDTO,
-    AuthenticateResponseDTO,
     CallbackQueryDTO,
     SystemsResponseDTO,
 )
@@ -21,11 +20,17 @@ async def get_systems(authentication_context: AuthenticatedContext):
     return await service.get_systems()
 
 
-@router.post("/authenticate", response_model=AuthenticateResponseDTO)
-async def authenticate(request: AuthenticateRequestDTO, authentication_context: AuthenticatedContext):
+@router.get("/authenticate")
+async def authenticate(
+    authentication_context: AuthenticatedContext,
+    accounting_system: str = Query(..., description="Accounting system (e.g., 'quickbooks')"),
+    callback_uri: str = Query(..., description="URI to redirect after OAuth completion"),
+):
     try:
         service = OAuthService()
-        return await service.initiate_oauth(authentication_context.partner_id, request)
+        request = AuthenticateRequestDTO(accounting_system=accounting_system, callback_uri=callback_uri)
+        response = await service.initiate_oauth(authentication_context.partner_id, request)
+        return RedirectResponse(url=response.authorization_url)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

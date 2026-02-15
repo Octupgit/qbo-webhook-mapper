@@ -43,25 +43,23 @@ class TestOAuthFlowIntegration:
             assert data["systems"][0]["id"] == "quickbooks"
 
     def test_authenticate_requires_authentication(self, client):
-        response = client.post(
-            "/api/v1/oauth/authenticate",
-            json={"accounting_system": "quickbooks", "callback_uri": "https://octup.com/callback"},
+        response = client.get(
+            "/api/v1/oauth/authenticate?accounting_system=quickbooks&callback_uri=https://octup.com/callback"
         )
         assert response.status_code == 440
 
-    def test_authenticate_returns_authorization_url(self, client, mock_redis_session):
+    def test_authenticate_redirects_to_oauth_page(self, client, mock_redis_session):
         with patch("accounting.common.cache.user_session_cache.UserSessionCache.get_user_data") as mock_get:
             from accounting.models.session import SessionData
 
             mock_get.return_value = SessionData.model_validate(mock_redis_session)
 
-            response = client.post(
-                "/api/v1/oauth/authenticate",
-                json={"accounting_system": "quickbooks", "callback_uri": "https://octup.com/callback"},
+            response = client.get(
+                "/api/v1/oauth/authenticate?accounting_system=quickbooks&callback_uri=https://octup.com/callback",
                 headers={"Authorization": "Bearer test_token"},
+                follow_redirects=False,
             )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "authorization_url" in data
-            assert "appcenter.intuit.com" in data["authorization_url"]
+            assert response.status_code == 307
+            assert "location" in response.headers
+            assert "appcenter.intuit.com" in response.headers["location"]
