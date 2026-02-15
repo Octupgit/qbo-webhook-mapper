@@ -13,7 +13,6 @@ class SystemsResponseDTO(BaseModel):
     systems: list[SystemDTO]
 
 class AuthenticateRequestDTO(BaseModel):
-    partner_id: int = Field(..., gt=0, description="Octup partner ID")
     accounting_system: str = Field(..., pattern="^(quickbooks|xero)$")
     callback_uri: HttpUrl = Field(..., description="URL to redirect after OAuth")
 

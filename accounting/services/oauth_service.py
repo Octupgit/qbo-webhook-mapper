@@ -37,10 +37,10 @@ class OAuthService:
         return SystemsResponseDTO(systems=systems)
 
     async def initiate_oauth(
-        self, request: AuthenticateRequestDTO
+        self, partner_id: int, request: AuthenticateRequestDTO
     ) -> AuthenticateResponseDTO:
         state = self.state_manager.generate_state(
-            partner_id=request.partner_id,
+            partner_id=partner_id,
             callback_uri=str(request.callback_uri)
         )
 
@@ -51,7 +51,7 @@ class OAuthService:
         auth_url = strategy.get_authorization_url(state)
 
         self._log.info(
-            f"OAuth initiated: partner_id={request.partner_id}, "
+            f"OAuth initiated: partner_id={partner_id}, "
             f"system={request.accounting_system}"
         )
 

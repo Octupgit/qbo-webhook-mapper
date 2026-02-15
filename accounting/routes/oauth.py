@@ -9,21 +9,25 @@ from accounting.models.oauth import (
     CallbackQueryDTO
 )
 from accounting.services.oauth_service import OAuthService
+from accounting.common.auth.dependencies import AuthenticatedContext
 from accounting.common.logging.json_logger import setup_logger
 
 router = APIRouter(prefix="/api/v1/oauth", tags=["oauth"])
 LOGGER = setup_logger()
 
 @router.get("/systems", response_model=SystemsResponseDTO)
-async def get_systems():
+async def get_systems(authentication_context: AuthenticatedContext):
     service = OAuthService()
     return await service.get_systems()
 
 @router.post("/authenticate", response_model=AuthenticateResponseDTO)
-async def authenticate(request: AuthenticateRequestDTO):
+async def authenticate(
+    request: AuthenticateRequestDTO,
+    authentication_context: AuthenticatedContext
+):
     try:
         service = OAuthService()
-        return await service.initiate_oauth(request)
+        return await service.initiate_oauth(authentication_context.partner_id, request)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
