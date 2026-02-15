@@ -1,5 +1,5 @@
 from accounting.common.cache.cache_handler_base import CacheHandlerBase
-from accounting.common.cache.session_models import SessionData
+from accounting.models.session import SessionData
 from accounting.common.logging.json_logger import setup_logger
 
 class UserTokenNotFoundException(Exception):
@@ -10,7 +10,7 @@ class InvalidSessionError(Exception):
 
 class UserSessionCache(CacheHandlerBase):
     _log = setup_logger()
-    __pref_session = "session-token"
+    __pref_session = "accounting"
 
     def __key_user_token(self, user_token: str) -> str:
         return self._generate_key([self.__pref_session, user_token])
