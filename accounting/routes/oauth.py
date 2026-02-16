@@ -41,22 +41,20 @@ async def callback(
     background_tasks: BackgroundTasks,
     code: str = Query(..., description="Authorization code"),
     state: str = Query(..., description="Encrypted state parameter"),
-    realmId: str | None = Query(None, description="QuickBooks realm ID"),
+    realmId: str | None = Query(None, description="Accounting system realm ID"),
 ):
     try:
         callback_dto = CallbackDTO.from_request(code=code, state=state, realm_id=realmId)
 
-        # System extracted from state by service
-
         service = OAuthService()
-        callback_dto, context = await service.handle_callback(callback_dto, accounting_system)
+        callback_dto, sync_result = await service.handle_callback(callback_dto)
 
         state_data = service.state_manager.validate_state(state)
         callback_uri = state_data["callback_uri"]
 
         if callback_dto.status == CallbackStatus.SUCCESS:
-            if context:
-                background_tasks.add_task(service.process_initial_sync, context)
+            if sync_result:
+                background_tasks.add_task(service.post_integration_completed, sync_result)
             redirect_url = f"{callback_uri}?status=success&integration_id={callback_dto.integration_id}"
         else:
             redirect_url = f"{callback_uri}?status=error&error_reason={callback_dto.error_reason}"

@@ -69,6 +69,7 @@ class HTTPHeaders:
     AUTHORIZATION = "Authorization"
     CONTENT_TYPE = "Content-Type"
     ACCEPT = "Accept"
+    APPLICATION_JSON = "application/json"
     BEARER_PREFIX = "Bearer "
 
 
@@ -100,7 +101,7 @@ class RedisKeyPrefix:
 # ============================================================================
 
 class QuickBooksFields:
-    """QuickBooks API response field names"""
+    """QuickBooks API response field names and parameters"""
     QUERY_RESPONSE = "QueryResponse"
     CUSTOMER = "Customer"
     COMPANY_INFO = "CompanyInfo"
@@ -110,6 +111,8 @@ class QuickBooksFields:
     FULLY_QUALIFIED_NAME = "FullyQualifiedName"
     PARENT_REF = "ParentRef"
     VALUE = "value"
+    MINOR_VERSION_PARAM = "minorversion"
+    QUERY_PARAM = "query"
 
 
 class QuickBooksQuery:
@@ -119,7 +122,9 @@ class QuickBooksQuery:
 
 
 class QuickBooksAPI:
-    """QuickBooks API paths"""
+    """QuickBooks API configuration"""
+    SANDBOX_BASE_URL = "https://sandbox-quickbooks.api.intuit.com"
+    PRODUCTION_BASE_URL = "https://quickbooks.api.intuit.com"
     COMPANY_INFO = "/v3/company/{realm_id}/companyinfo/{realm_id}"
     QUERY = "/v3/company/{realm_id}/query"
 
