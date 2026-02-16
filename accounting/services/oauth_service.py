@@ -27,7 +27,7 @@ from accounting.models.oauth import (
 )
 from accounting.services.oauth_state_manager import OAuthStateManager
 from accounting.services.token_encryption import TokenEncryption
-from accounting.strategies import QuickBooksAuthStrategy
+from accounting.strategies import QuickBooksStrategy
 
 
 class OAuthService:
@@ -39,7 +39,7 @@ class OAuthService:
         self._log = setup_logger()
 
         self.strategies = {
-            AccountingSystem.QUICKBOOKS: QuickBooksAuthStrategy(),
+            AccountingSystem.QUICKBOOKS: QuickBooksStrategy(),
         }
 
     async def get_systems(self) -> SystemsDTO:

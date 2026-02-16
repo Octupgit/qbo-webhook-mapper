@@ -15,7 +15,6 @@ class SystemInfo(BaseModel):
     id: str
     name: str
     text: str
-    enabled: bool
 
 
 class SystemsDTO(DtoModel):
