@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from accounting.models.oauth import AuthenticateDTO, CallbackDTO, SystemInfo
-
+from accounting.models.oauth import AccountingIntegrationDTO, AuthenticateDTO, CallbackDTO, SystemInfo
+from accounting.models.integration_sync import InitialSyncResult
 
 class BaseAccountingStrategy(ABC):
     """
@@ -38,12 +38,23 @@ class BaseAccountingStrategy(ABC):
         pass
 
     @abstractmethod
-    async def handle_oauth_callback(
+    async def get_connection_details_from_callback(
         self,
         callback_dto: CallbackDTO,
-    ) -> CallbackDTO:
+        integration_dto: AccountingIntegrationDTO,
+    ) -> AccountingIntegrationDTO:
         """
         Handle complete OAuth callback flow.
+        """
+        pass
+
+    @abstractmethod
+    async def fetch_initial_data(
+        self,
+        integration_dto: AccountingIntegrationDTO,
+    ) -> InitialSyncResult:
+        """
+        Update integration with connection details.
         """
         pass
 

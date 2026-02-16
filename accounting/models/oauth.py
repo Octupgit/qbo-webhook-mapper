@@ -118,9 +118,9 @@ class AccountingIntegrationDTO(DtoModel):
     integration_name: str
     partner_id: int
     accounting_system: str
-    is_active: bool
-    connection_details: dict
-    created_at: datetime
+    connection_details: dict | None = None
+    is_active: bool | None = None
+    created_at: datetime | None = None
     updated_at: datetime | None = None
 
     @classmethod
@@ -131,8 +131,16 @@ class AccountingIntegrationDTO(DtoModel):
     def from_db_row(cls, row: AccountingIntegrationDBModel) -> "AccountingIntegrationDTO":
         return cls.model_validate(row)
 
-    def to_db_rows(self, *args, **kwargs) -> list[dict]:
-        return [self.model_dump(exclude={"id", "created_at", "updated_at"})]
+    def to_db_rows(self, *args, **kwargs) -> list[AccountingIntegrationDBModel]:
+        return [
+            AccountingIntegrationDBModel(
+                integration_name=self.integration_name,
+                partner_id=self.partner_id,
+                accounting_system=self.accounting_system,
+                connection_details=self.connection_details or {},
+                is_active=self.is_active if self.is_active is not None else True,
+            )
+        ]
 
     @classmethod
     def from_request(
@@ -140,8 +148,8 @@ class AccountingIntegrationDTO(DtoModel):
         partner_id: int,
         accounting_system: str,
         integration_name: str,
-        connection_details: dict,
         is_active: bool = True,
+        connection_details: dict | None = None,
     ) -> "AccountingIntegrationDTO":
         return cls(
             id=UUID(int=0),
@@ -161,7 +169,7 @@ class AccountingIntegrationDTO(DtoModel):
             "accounting_system": self.accounting_system,
             "is_active": self.is_active,
             "connection_details": self.connection_details,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 

@@ -49,19 +49,7 @@ async def callback(
 ):
     try:
         callback_dto = CallbackDTO.from_request(code=code, state=state, realm_id=realmId)
-
-        callback_dto = await oauth_service.handle_callback(callback_dto)
-
-        state_data = oauth_service.state_manager.validate_state(state)
-        callback_uri = state_data["callback_uri"]
-
-        if callback_dto.status == CallbackStatus.SUCCESS:
-            redirect_url = f"{callback_uri}?status=success&accounting_system={state_data["accounting_system"]}"
-        else:
-            redirect_url = f"{callback_uri}?status=error&error_reason={callback_dto.error_reason}"
-
-        return RedirectResponse(url=redirect_url)
-
+        return await oauth_service.handle_callback(callback_dto, background_tasks)
     except ValueError as e:
         LOGGER.error(f"Callback validation error: {str(e)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

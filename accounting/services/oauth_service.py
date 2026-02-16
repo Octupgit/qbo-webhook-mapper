@@ -1,6 +1,8 @@
 from typing import cast
 
 import httpx
+from fastapi import BackgroundTasks
+from fastapi.responses import RedirectResponse
 from pydantic import HttpUrl
 
 from accounting.common.constants import (
@@ -53,58 +55,84 @@ class OAuthService:
         self._log.info(f"OAuth initiated: partner_id={auth_dto.partner_id}, system={auth_dto.accounting_system}")
         return auth_dto
 
-    async def handle_callback(self, callback_dto: CallbackDTO) -> CallbackDTO:
-        try:
-            state_data = self.state_manager.validate_state(callback_dto.state)
-            partner_id = state_data["partner_id"]
-            accounting_system = state_data["accounting_system"]
+    async def handle_callback(
+        self, callback_dto: CallbackDTO, background_tasks: BackgroundTasks
+    ) -> RedirectResponse:
+        state_data = self.state_manager.validate_state(callback_dto.state)
+        partner_id = state_data["partner_id"]
+        accounting_system = state_data["accounting_system"]
+        callback_uri = state_data["callback_uri"]
 
+        strategy = self.strategies.get(accounting_system)
+        if not strategy:
+            raise ValueError(ErrorMessage.UNSUPPORTED_SYSTEM.format(system=accounting_system))
+
+        if not callback_dto.realmId:
+            raise ValueError(ErrorMessage.MISSING_REALM_ID)
+
+        integration_dto = AccountingIntegrationDTO.from_request(
+            partner_id=partner_id,
+            accounting_system=accounting_system,
+            integration_name=strategy.system_name,
+            connection_details={},
+            is_active=True,
+        )
+
+        integration_dto = await strategy.get_connection_details_from_callback(
+            callback_dto=callback_dto,
+            integration_dto=integration_dto,
+        )
+
+        integration = integration_dto.to_db_rows()[0]
+        integration_ids = await self.datastore.upsert_integrations([integration])
+        integration_id = integration_ids[0]
+
+        self._log.info(
+            f"Integration created: id={integration_id}, partner={partner_id}, system={accounting_system}"
+        )
+
+        integration_dto.id = integration_id
+
+        background_tasks.add_task(
+            self._execute_initial_sync,
+            integration_dto=integration_dto,
+            accounting_system=accounting_system,
+        )
+
+        redirect_url = (
+            f"{callback_uri}?status=success"
+            f"&accounting_system={accounting_system}"
+            f"&integration_id={integration_id}"
+        )
+        return RedirectResponse(url=redirect_url)
+
+    async def _execute_initial_sync(
+        self,
+        integration_dto: AccountingIntegrationDTO,
+        accounting_system: str,
+    ) -> None:
+        try:
             strategy = self.strategies.get(accounting_system)
             if not strategy:
-                raise ValueError(ErrorMessage.UNSUPPORTED_SYSTEM.format(system=accounting_system))
+                self._log.error(f"Strategy not found for {accounting_system}")
+                return
 
-            if not callback_dto.realmId:
-                raise ValueError(ErrorMessage.MISSING_REALM_ID)
-
-            integration_dto = AccountingIntegrationDTO.from_request(
-                partner_id=partner_id,
-                accounting_system=accounting_system,
-                integration_name=strategy.system_name,
-                connection_details={
-                    "realm_id": callback_dto.realmId,
-                    "company_name": strategy.system_name,
-                },
-                is_active=True,
-            )
-            row_dict = integration_dto.to_db_rows()[0]
-            integration = AccountingIntegrationDBModel(**row_dict)
-            integration_ids = await self.datastore.upsert_integrations([integration])
-            integration_id = integration_ids[0]
-
-            sync_result = await strategy.handle_oauth_callback(
-                code=callback_dto.code,
-                realm_id=callback_dto.realmId,
-                integration_id=integration_id,
-                partner_id=partner_id,
-            )
+            sync_result = await strategy.fetch_initial_data(integration_dto)
 
             self._log.info(
-                f"Integration completed: id={integration_id}, partner={partner_id}, "
-                f"system={accounting_system}, status={sync_result.status}"
+                f"Initial sync completed: id={integration_dto.id}, "
+                f"partner={integration_dto.partner_id}, status={sync_result.status}"
             )
 
-            callback_dto.status = CallbackStatus.SUCCESS
-            callback_dto.integration_id = integration_id
-
-            return callback_dto
+            await self._post_integration_completed(sync_result)
 
         except Exception as e:
-            self._log.error(f"Callback processing error: {str(e)}")
-            callback_dto.status = CallbackStatus.ERROR
-            callback_dto.error_reason = ErrorMessage.INTERNAL_ERROR
-            return callback_dto
+            self._log.error(
+                f"Background sync failed for integration {integration_dto.id}: {str(e)}",
+                exc_info=True,
+            )
 
-    async def post_integration_completed(self, sync_result: InitialSyncResult) -> None:
+    async def _post_integration_completed(self, sync_result: InitialSyncResult) -> None:
         if not settings.OCTUP_EXTERNAL_BASE_URL:
             self._log.error("OCTUP_EXTERNAL_BASE_URL is not configured")
             return
