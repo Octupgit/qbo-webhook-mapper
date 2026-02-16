@@ -31,17 +31,20 @@ class OAuthService:
         self.datastore = IntegrationDataStore()
         self._log = setup_logger()
 
-        self.strategies = {AccountingSystem.QUICKBOOKS: QuickBooksAuthStrategy()}
+        self.strategies = {
+            AccountingSystem.QUICKBOOKS: QuickBooksAuthStrategy(),
+        }
 
     async def get_systems(self) -> SystemsDTO:
         systems = [strategy.get_system_info() for strategy in self.strategies.values()]
         return SystemsDTO(systems=systems)
 
-    async def initiate_oauth(self, partner_id: int, auth_dto: AuthenticateDTO) -> AuthenticateDTO:
+    async def initiate_oauth(self, auth_dto: AuthenticateDTO) -> AuthenticateDTO:
         strategy = self.strategies.get(auth_dto.accounting_system)
         if not strategy:
             raise ValueError(ErrorMessage.UNSUPPORTED_SYSTEM.format(system=auth_dto.accounting_system))
 
+        partner_id = auth_dto.partner_id
         state = self.state_manager.generate_state(
             partner_id=partner_id,
             accounting_system=auth_dto.accounting_system,
@@ -70,10 +73,8 @@ class OAuthService:
             integration_id = await self.datastore.create_integration(
                 partner_id=partner_id,
                 accounting_system=accounting_system,
-                realm_id=callback_dto.realmId,
-                company_name=strategy.system_name,
-                access_token="",
-                refresh_token="",
+                integration_name=strategy.system_name,
+                connection_details=connection_details,
             )
 
             sync_result = await strategy.handle_oauth_callback(

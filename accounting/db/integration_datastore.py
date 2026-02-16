@@ -1,11 +1,12 @@
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select, update
 
 from accounting.common.logging.json_logger import setup_logger
 from accounting.db.base_engine import BaseSQLEngine
-from accounting.db.models import AccountingIntegration
+from accounting.db.tables import AccountingIntegration
 
 
 class IntegrationDataStore(BaseSQLEngine):
@@ -17,24 +18,20 @@ class IntegrationDataStore(BaseSQLEngine):
         self,
         partner_id: int,
         accounting_system: str,
-        realm_id: str,
-        company_name: str,
-        access_token: str,
-        refresh_token: str,
+        integration_name: str,
+        connection_details: dict,
     ) -> UUID:
         try:
             async with self.sessionmaker() as session:
                 integration = AccountingIntegration(
                     partner_id=partner_id,
                     accounting_system=accounting_system,
-                    realm_id=realm_id,
-                    company_name=company_name,
-                    access_token=access_token,
-                    refresh_token=refresh_token,
+                    integration_name=integration_name,
+                    connection_details=connection_details,
                 )
                 session.add(integration)
                 await session.flush()
-                integration_id = UUID(integration.integration_id)
+                integration_id = UUID(str(integration.id))
                 await session.commit()
                 return integration_id
         except Exception as e:
@@ -43,7 +40,7 @@ class IntegrationDataStore(BaseSQLEngine):
 
     async def get_integration_by_id(self, integration_id: UUID) -> AccountingIntegration | None:
         try:
-            query = select(AccountingIntegration).where(AccountingIntegration.integration_id == str(integration_id))
+            query = select(AccountingIntegration).where(AccountingIntegration.id == str(integration_id))
             return await self.execute_scalar(query)
         except Exception as e:
             self._log.error(f"Failed to get integration by id={integration_id}: {e}")
@@ -55,31 +52,25 @@ class IntegrationDataStore(BaseSQLEngine):
                 AccountingIntegration.partner_id == partner_id, AccountingIntegration.is_active
             )
             results = await self.execute_query_fetch_all(query, to_dict=False)
-            return results
+            return cast(list[AccountingIntegration], results)
         except Exception as e:
             self._log.error(f"Failed to get active integrations for partner_id={partner_id}: {e}")
             raise
 
-    async def update_tokens(self, integration_id: UUID, access_token: str, refresh_token: str) -> None:
+    async def update_connection_details(self, integration_id: UUID, connection_details: dict) -> None:
         try:
-            stmt = (
-                update(AccountingIntegration)
-                .where(AccountingIntegration.integration_id == str(integration_id))
-                .values(access_token=access_token, refresh_token=refresh_token, updated_at=datetime.utcnow())
-            )
-            await self.execute_query(stmt)
-        except Exception as e:
-            self._log.error(f"Failed to update tokens for integration_id={integration_id}: {e}")
-            raise
+            integration = await self.get_integration_by_id(integration_id)
+            if not integration:
+                raise ValueError(f"Integration {integration_id} not found")
 
-    async def update_company_name(self, integration_id: UUID, company_name: str) -> None:
-        try:
+            existing_details = integration.connection_details if isinstance(integration.connection_details, dict) else {}
+            updated_details = {**existing_details, **connection_details}
             stmt = (
                 update(AccountingIntegration)
-                .where(AccountingIntegration.integration_id == str(integration_id))
-                .values(company_name=company_name, updated_at=datetime.utcnow())
+                .where(AccountingIntegration.id == str(integration_id))
+                .values(connection_details=updated_details, updated_at=datetime.utcnow())
             )
             await self.execute_query(stmt)
         except Exception as e:
-            self._log.error(f"Failed to update company name for integration_id={integration_id}: {e}")
+            self._log.error(f"Failed to update connection details for integration_id={integration_id}: {e}")
             raise

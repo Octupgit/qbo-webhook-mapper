@@ -29,7 +29,6 @@ class BaseAccountingStrategy(ABC):
     def get_system_info(self) -> SystemInfo:
         """
         Get system information for UI display.
-        Called by: OAuthService.get_systems()
         """
         pass
 
@@ -37,7 +36,6 @@ class BaseAccountingStrategy(ABC):
     def get_authorization_url(self, state: str) -> str:
         """
         Generate OAuth authorization URL.
-        Called by: OAuthService.initiate_oauth()
         """
         pass
 

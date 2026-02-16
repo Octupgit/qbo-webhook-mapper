@@ -10,11 +10,12 @@ from accounting.services.oauth_service import OAuthService
 router = APIRouter(prefix="/api/v1/oauth", tags=["oauth"])
 LOGGER = setup_logger()
 
+oauth_service = OAuthService()
+
 
 @router.get("/systems")
 async def get_systems(authentication_context: AuthenticatedContext):
-    service = OAuthService()
-    systems_dto = await service.get_systems()
+    systems_dto = await oauth_service.get_systems()
     return systems_dto.to_response()
 
 
@@ -25,9 +26,12 @@ async def authenticate(
     callback_uri: str = Query(..., description="URI to redirect after OAuth completion"),
 ):
     try:
-        service = OAuthService()
-        auth_dto = AuthenticateDTO.from_request(accounting_system=accounting_system, callback_uri=callback_uri)
-        auth_dto = await service.initiate_oauth(authentication_context.partner_id, auth_dto)
+        auth_dto = AuthenticateDTO.from_request(
+            accounting_system=accounting_system,
+            callback_uri=callback_uri,
+            partner_id=authentication_context.partner_id,
+        )
+        auth_dto = await oauth_service.initiate_oauth(auth_dto)
         return RedirectResponse(url=str(auth_dto.authorization_url))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -46,15 +50,14 @@ async def callback(
     try:
         callback_dto = CallbackDTO.from_request(code=code, state=state, realm_id=realmId)
 
-        service = OAuthService()
-        callback_dto, sync_result = await service.handle_callback(callback_dto)
+        callback_dto, sync_result = await oauth_service.handle_callback(callback_dto)
 
-        state_data = service.state_manager.validate_state(state)
+        state_data = oauth_service.state_manager.validate_state(state)
         callback_uri = state_data["callback_uri"]
 
         if callback_dto.status == CallbackStatus.SUCCESS:
             if sync_result:
-                background_tasks.add_task(service.post_integration_completed, sync_result)
+                background_tasks.add_task(oauth_service.post_integration_completed, sync_result)
             redirect_url = f"{callback_uri}?status=success&integration_id={callback_dto.integration_id}"
         else:
             redirect_url = f"{callback_uri}?status=error&error_reason={callback_dto.error_reason}"

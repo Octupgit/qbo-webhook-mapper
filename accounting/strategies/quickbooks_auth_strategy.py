@@ -96,7 +96,10 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
         try:
             company_name = await self._fetch_company_info(access_token, realm_id)
             if company_name and company_name != DefaultCompanyName.QUICKBOOKS:
-                await self.datastore.update_company_name(integration_id, company_name)
+                await self.datastore.update_connection_details(
+                    integration_id,
+                    {"company_name": company_name},
+                )
         except Exception as e:
             self._log.warning(f"Company info fetch failed: {str(e)}, using fallback")
             errors.append(f"Company info fetch failed: {str(e)}")
@@ -127,7 +130,8 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
         if not integration:
             raise ValueError(f"Integration {integration_id} not found")
 
-        encrypted_refresh = integration.refresh_token
+        connection_details = integration.connection_details if isinstance(integration.connection_details, dict) else {}
+        encrypted_refresh = connection_details.get("refresh_token")
         if not encrypted_refresh:
             raise ValueError(f"No refresh token found for integration {integration_id}")
 
@@ -166,7 +170,10 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
     async def _store_encrypted_tokens(self, integration_id: UUID, access_token: str, refresh_token: str) -> None:
         encrypted_access = self.token_encryption.encrypt(access_token)
         encrypted_refresh = self.token_encryption.encrypt(refresh_token)
-        await self.datastore.update_tokens(integration_id, encrypted_access, encrypted_refresh)
+        await self.datastore.update_connection_details(
+            integration_id,
+            {"access_token": encrypted_access, "refresh_token": encrypted_refresh},
+        )
 
     async def _fetch_company_info(self, access_token: str, realm_id: str | None = None) -> str:
         url = f"{self.api_base_url}/v3/company/{realm_id}/companyinfo/{realm_id}"

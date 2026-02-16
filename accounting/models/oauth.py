@@ -3,8 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from accounting.common.constants import IntegrationStatus, ValidationPattern
-from accounting.db.models import AccountingIntegration
+from accounting.common.constants import ValidationPattern
+from accounting.db.tables import AccountingIntegration
 from accounting.models.base import DtoModel
 
 
@@ -46,6 +46,7 @@ class AuthenticateDTO(DtoModel):
 
     accounting_system: str = Field(..., pattern=ValidationPattern.ACCOUNTING_SYSTEM)
     callback_uri: HttpUrl = Field(..., description="URL to redirect after OAuth")
+    partner_id: int
     authorization_url: HttpUrl | None = None
 
     @classmethod
@@ -60,8 +61,8 @@ class AuthenticateDTO(DtoModel):
         raise NotImplementedError("Authentication is not persisted to DB")
 
     @classmethod
-    def from_request(cls, accounting_system: str, callback_uri: str) -> "AuthenticateDTO":
-        return cls(accounting_system=accounting_system, callback_uri=callback_uri)
+    def from_request(cls, accounting_system: str, callback_uri: str, partner_id: int) -> "AuthenticateDTO":
+        return cls(accounting_system=accounting_system, callback_uri=callback_uri, partner_id=partner_id)
 
     def to_response(self, *args, **kwargs) -> dict:
         if not self.authorization_url:
@@ -108,13 +109,12 @@ class CallbackDTO(DtoModel):
 class AccountingIntegrationDTO(DtoModel):
     """DTO for accounting integration entity"""
 
-    integration_id: UUID
+    id: UUID
+    integration_name: str
     partner_id: int
     accounting_system: str
-    company_name: str
-    realm_id: str
     is_active: bool
-    status: str
+    connection_details: dict
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -127,38 +127,35 @@ class AccountingIntegrationDTO(DtoModel):
         return cls.model_validate(row)
 
     def to_db_rows(self, *args, **kwargs) -> list[dict]:
-        return [self.model_dump(exclude={"integration_id", "created_at", "updated_at"})]
+        return [self.model_dump(exclude={"id", "created_at", "updated_at"})]
 
     @classmethod
     def from_request(
         cls,
         partner_id: int,
         accounting_system: str,
-        company_name: str,
-        realm_id: str,
+        integration_name: str,
+        connection_details: dict,
         is_active: bool = True,
-        status: str = IntegrationStatus.ACTIVE,
     ) -> "AccountingIntegrationDTO":
         return cls(
-            integration_id=UUID(int=0),
+            id=UUID(int=0),
             partner_id=partner_id,
             accounting_system=accounting_system,
-            company_name=company_name,
-            realm_id=realm_id,
+            integration_name=integration_name,
+            connection_details=connection_details,
             is_active=is_active,
-            status=status,
             created_at=datetime.utcnow(),
         )
 
     def to_response(self, *args, **kwargs) -> dict:
         return {
-            "integration_id": str(self.integration_id),
+            "id": str(self.id),
+            "integration_name": self.integration_name,
             "partner_id": self.partner_id,
             "accounting_system": self.accounting_system,
-            "company_name": self.company_name,
-            "realm_id": self.realm_id,
             "is_active": self.is_active,
-            "status": self.status,
+            "connection_details": self.connection_details,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     REDIS_USERNAME: str = "default"
     REDIS_DB: int = 1
     OCTUP_EXTERNAL_BASE_URL: str = ""
+    ACCOUNTING_SCHEMA_NAME: str = "accounting_integrations"
 
 
 settings = Settings()
