@@ -16,6 +16,7 @@ from accounting.db import IntegrationDataStore
 from accounting.db.tables import AccountingIntegrationDBModel
 from accounting.models.integration_sync import InitialSyncResult
 from accounting.models.oauth import (
+    AccountingIntegrationDTO,
     AuthenticateDTO,
     CallbackDTO,
     SystemsDTO,
@@ -65,16 +66,18 @@ class OAuthService:
             if not callback_dto.realmId:
                 raise ValueError(ErrorMessage.MISSING_REALM_ID)
 
-            connection_details = {
-                "realm_id": callback_dto.realmId,
-                "company_name": strategy.system_name,
-            }
-            integration = AccountingIntegrationDBModel(
+            integration_dto = AccountingIntegrationDTO.from_request(
                 partner_id=partner_id,
                 accounting_system=accounting_system,
                 integration_name=strategy.system_name,
-                connection_details=connection_details,
+                connection_details={
+                    "realm_id": callback_dto.realmId,
+                    "company_name": strategy.system_name,
+                },
+                is_active=True,
             )
+            row_dict = integration_dto.to_db_rows()[0]
+            integration = AccountingIntegrationDBModel(**row_dict)
             integration_ids = await self.datastore.upsert_integrations([integration])
             integration_id = integration_ids[0]
 
