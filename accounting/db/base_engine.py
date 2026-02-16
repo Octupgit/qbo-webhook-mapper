@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from accounting.common.logging.json_logger import setup_logger
-from accounting.config import settings
+from accounting.db.utils import create_accounting_data_store_url
 
 engines: dict[str, AsyncEngine] = {}
 
@@ -40,10 +40,11 @@ class BaseSQLEngine:
     retry_settings = RetrySettings()
     _log = setup_logger()
 
-    def __init__(self, url: str | None = None):
-        self._engine = engines.get(url or settings.DATABASE_URL)
+    def __init__(self):
+        resolved_url = create_accounting_data_store_url()
+        self._engine = engines.get(resolved_url)
         self._sessionmaker = None
-        self.url = url or settings.DATABASE_URL
+        self.url = resolved_url
         self.metadata = MetaData()
 
     @property

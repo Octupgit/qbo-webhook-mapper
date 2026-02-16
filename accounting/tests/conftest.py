@@ -13,7 +13,11 @@ def pytest_configure(config):
 
     os.environ["ENCRYPTION_KEY"] = test_fernet_key
     os.environ["OAUTH_STATE_SECRET"] = test_aes_key
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+    os.environ["ACCOUNTING_DB_ENGINE"] = "sqlite+aiosqlite"
+    os.environ["ACCOUNTING_DB_USER"] = ""
+    os.environ["ACCOUNTING_DB_PW"] = ""
+    os.environ["ACCOUNTING_DB_URL"] = ":memory:"
+    os.environ["ACCOUNTING_SCHEMA_NAME"] = ""
     os.environ["REDIS_HOST"] = "localhost"
     os.environ["REDIS_PORT"] = "6379"
     os.environ["REDIS_PASSWORD"] = ""

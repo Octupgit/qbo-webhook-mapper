@@ -93,7 +93,7 @@ class QuickBooksStrategy(BaseAccountingStrategy):
                 expiry=expiry,
             )
 
-            integration_dto.connection_details = connection_details.to_dict()
+            integration_dto.connection_details = connection_details.model_dump()
 
             self._log.info(
                 f"Token exchange completed for realm_id={callback_dto.realmId}, "
@@ -115,7 +115,7 @@ class QuickBooksStrategy(BaseAccountingStrategy):
         accounting_clients = []
 
         try:
-            connection_details = QuickBooksConnectionDetails.from_dict(
+            connection_details = QuickBooksConnectionDetails.model_validate(
                 integration_dto.connection_details or {}
             )
         except Exception as e:
@@ -174,7 +174,7 @@ class QuickBooksStrategy(BaseAccountingStrategy):
             raise ValueError(f"Integration {integration_id} not found")
 
         try:
-            connection_details = QuickBooksConnectionDetails.from_dict(
+            connection_details = QuickBooksConnectionDetails.model_validate(
                 integration.connection_details if isinstance(integration.connection_details, dict) else {}
             )
         except Exception as e:
@@ -206,7 +206,7 @@ class QuickBooksStrategy(BaseAccountingStrategy):
 
             await self.datastore.update_connection_details(
                 integration_id,
-                updated_connection_details.to_dict(),
+                updated_connection_details.model_dump(),
             )
 
             self._log.info(f"Tokens refreshed for integration {integration_id}, expires_at={expiry.isoformat()}")
