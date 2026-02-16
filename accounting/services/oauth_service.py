@@ -6,6 +6,15 @@ from uuid import UUID
 import httpx
 from pydantic import HttpUrl
 
+from accounting.common.constants import (
+    AccountingSystem,
+    CallbackStatus,
+    DefaultCompanyName,
+    ErrorMessage,
+    QuickBooksFields,
+    SyncErrorCode,
+    SyncStatus,
+)
 from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 from accounting.db import IntegrationDataStore
@@ -36,10 +45,10 @@ class OAuthService:
         self.datastore = IntegrationDataStore()
         self._log = setup_logger()
 
-        self.strategies = {"quickbooks": QuickBooksAuthStrategy()}
+        self.strategies = {AccountingSystem.QUICKBOOKS: QuickBooksAuthStrategy()}
 
     async def get_systems(self) -> SystemsDTO:
-        systems = [SystemInfo(id="quickbooks", name="QuickBooks Online", text="Connect to QuickBooks", enabled=True)]
+        systems = [SystemInfo(id=AccountingSystem.QUICKBOOKS, name=AccountingSystemName.QUICKBOOKS, text="Connect to QuickBooks", enabled=True)]
         return SystemsDTO(systems=systems)
 
     async def initiate_oauth(self, partner_id: int, auth_dto: AuthenticateDTO) -> AuthenticateDTO:
@@ -90,7 +99,7 @@ class OAuthService:
                 f"Integration created: id={integration_id}, partner={partner_id}, system={accounting_system}"
             )
 
-            callback_dto.status = "success"
+            callback_dto.status = CallbackStatus.SUCCESS
             callback_dto.integration_id = integration_id
             context = CallbackContext(
                 integration_id=integration_id,
@@ -103,13 +112,13 @@ class OAuthService:
 
         except ValueError as e:
             self._log.error(f"Callback validation error: {str(e)}")
-            callback_dto.status = "error"
+            callback_dto.status = CallbackStatus.ERROR
             callback_dto.error_reason = str(e)
             return callback_dto, None
         except Exception as e:
             self._log.exception(f"Callback processing error: {str(e)}")
-            callback_dto.status = "error"
-            callback_dto.error_reason = "Internal error"
+            callback_dto.status = CallbackStatus.ERROR
+            callback_dto.error_reason = ErrorMessage.INTERNAL_ERROR
             return callback_dto, None
 
     async def process_initial_sync(self, context: CallbackContext) -> None:
@@ -127,7 +136,7 @@ class OAuthService:
                 await self.datastore.update_company_name(context.integration_id, company_name)
         except Exception as e:
             self._log.error(f"Company info fetch failed: {str(e)}")
-            errors.append("company_info_fetch_failed")
+            errors.append(SyncErrorCode.COMPANY_INFO_FETCH_FAILED)
 
         try:
             initial_data = await strategy.fetch_initial_data(context.access_token, context.realm_id)
@@ -135,9 +144,9 @@ class OAuthService:
         except Exception as e:
             self._log.error(f"Initial data fetch failed: {str(e)}")
             accounting_clients = []
-            errors.append("initial_data_fetch_failed")
+            errors.append(SyncErrorCode.INITIAL_DATA_FETCH_FAILED)
 
-        status = "fully_synced" if not errors else "sync_error"
+        status = SyncStatus.FULLY_SYNCED if not errors else SyncStatus.SYNC_ERROR
         payload = {
             "metadata": {
                 "integration_id": str(context.integration_id),
@@ -155,32 +164,32 @@ class OAuthService:
         await self._post_integration_completed(payload)
 
     def _default_company_name(self, accounting_system: str) -> str:
-        if accounting_system == "quickbooks":
-            return "QuickBooks Account"
-        return "Accounting Account"
+        if accounting_system == AccountingSystem.QUICKBOOKS:
+            return DefaultCompanyName.QUICKBOOKS
+        return DefaultCompanyName.GENERIC
 
     def _integration_name(self, accounting_system: str) -> str:
-        if accounting_system == "quickbooks":
-            return "QuickBooks Online"
+        if accounting_system == AccountingSystem.QUICKBOOKS:
+            return AccountingSystemName.QUICKBOOKS
         return accounting_system
 
     def _extract_customers(self, data: dict) -> list[dict]:
         if not isinstance(data, dict):
             return []
-        query_response = data.get("QueryResponse", {})
-        customers = query_response.get("Customer", [])
+        query_response = data.get(QuickBooksFields.QUERY_RESPONSE, {})
+        customers = query_response.get(QuickBooksFields.CUSTOMER, [])
         if not isinstance(customers, list):
             return []
         results: list[dict] = []
         for customer in customers:
-            customer_id = customer.get("Id")
+            customer_id = customer.get(QuickBooksFields.ID)
             if not customer_id:
                 continue
-            display_name = customer.get("DisplayName") or customer.get("FullyQualifiedName") or str(customer_id)
+            display_name = customer.get(QuickBooksFields.DISPLAY_NAME) or customer.get(QuickBooksFields.FULLY_QUALIFIED_NAME) or str(customer_id)
             parent_ref = None
-            parent_data = customer.get("ParentRef")
+            parent_data = customer.get(QuickBooksFields.PARENT_REF)
             if isinstance(parent_data, dict):
-                parent_ref = parent_data.get("value")
+                parent_ref = parent_data.get(QuickBooksFields.VALUE)
             results.append(
                 {"accounting_client_id": str(customer_id), "display_name": display_name, "parent_ref": parent_ref}
             )

@@ -14,11 +14,11 @@ class OAuthStateManager:
         self.ttl_seconds = 600
         self._log = setup_logger()
 
-    def generate_state(self, partner_id: int, callback_uri: str) -> str:
+    def generate_state(self, partner_id: int, callback_uri: str, accounting_system: str) -> str:
         data = {
             "partner_id": partner_id,
             "callback_uri": callback_uri,
-            "nonce": secrets.token_urlsafe(16),
+            "accounting_system": accounting_system,
             "timestamp": int(time.time()),
         }
         json_data = json.dumps(data)

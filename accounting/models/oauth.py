@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from accounting.common.constants import IntegrationStatus, ValidationPattern
 from accounting.db.models import AccountingIntegration
 from accounting.models.base import DtoModel
 
@@ -43,7 +44,7 @@ class SystemsDTO(DtoModel):
 class AuthenticateDTO(DtoModel):
     """DTO for OAuth authentication flow (request + response)"""
 
-    accounting_system: str = Field(..., pattern="^(quickbooks|xero)$")
+    accounting_system: str = Field(..., pattern=ValidationPattern.ACCOUNTING_SYSTEM)
     callback_uri: HttpUrl = Field(..., description="URL to redirect after OAuth")
     authorization_url: HttpUrl | None = None
 
@@ -136,7 +137,7 @@ class AccountingIntegrationDTO(DtoModel):
         company_name: str,
         realm_id: str,
         is_active: bool = True,
-        status: str = "active",
+        status: str = IntegrationStatus.ACTIVE,
     ) -> "AccountingIntegrationDTO":
         return cls(
             integration_id=UUID(int=0),

@@ -4,6 +4,13 @@ import httpx
 from intuitlib.client import AuthClient
 from intuitlib.enums import Scopes
 
+from accounting.common.constants import (
+    DefaultCompanyName,
+    HTTPHeaders,
+    QuickBooksFields,
+    QuickBooksQuery,
+    Timeout,
+)
 from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 from accounting.strategies.base_strategy import BaseAccountingStrategy
@@ -49,16 +56,16 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
-                    headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
-                    params={"minorversion": "65"},
-                    timeout=10.0,
+                    headers={HTTPHeaders.AUTHORIZATION: f"Bearer {access_token}", HTTPHeaders.ACCEPT: "application/json"},
+                    params={"minorversion": QuickBooksQuery.MINOR_VERSION},
+                    timeout=Timeout.QUICKBOOKS_COMPANY_INFO,
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data["CompanyInfo"]["CompanyName"]
+                return data[QuickBooksFields.COMPANY_INFO][QuickBooksFields.COMPANY_NAME]
         except Exception as e:
             self._log.warning(f"CompanyInfo fetch failed: {str(e)}, using fallback")
-            return "QuickBooks Account"
+            return DefaultCompanyName.QUICKBOOKS
 
     async def fetch_initial_data(self, access_token: str, realm_id: str | None = None) -> dict:
         try:
@@ -66,15 +73,15 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
-                    headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
-                    params={"query": "SELECT * FROM Customer MAXRESULTS 100", "minorversion": "65"},
-                    timeout=15.0,
+                    headers={HTTPHeaders.AUTHORIZATION: f"Bearer {access_token}", HTTPHeaders.ACCEPT: "application/json"},
+                    params={"query": QuickBooksQuery.SELECT_CUSTOMERS, "minorversion": QuickBooksQuery.MINOR_VERSION},
+                    timeout=Timeout.QUICKBOOKS_CUSTOMER_FETCH,
                 )
                 response.raise_for_status()
                 return response.json()
         except Exception as e:
             self._log.error(f"Customer fetch failed: {str(e)}")
-            return {"QueryResponse": {}}
+            return {QuickBooksFields.QUERY_RESPONSE: {}}
 
     async def refresh_access_token(self, refresh_token: str) -> tuple[str, str]:
         try:

@@ -47,7 +47,7 @@ class BaseSQLEngine:
         try:
             if self._engine is None:
                 self._engine = create_async_engine(
-                    self.url, echo=settings.ENVIRONMENT == "development", pool_pre_ping=True, pool_recycle=3600
+                    self.url, echo=settings.ENV == "DEV", pool_pre_ping=True, pool_recycle=3600
                 )
                 self._log.debug("SQL engine initialized")
                 engines[self.url] = self._engine

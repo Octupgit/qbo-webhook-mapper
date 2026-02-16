@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
 from accounting.common.auth.dependencies import AuthenticatedContext
+from accounting.common.constants import CallbackStatus
 from accounting.common.logging.json_logger import setup_logger
 from accounting.models.oauth import AuthenticateDTO, CallbackDTO
 from accounting.services.oauth_service import OAuthService
@@ -45,7 +46,7 @@ async def callback(
     try:
         callback_dto = CallbackDTO.from_request(code=code, state=state, realm_id=realmId)
 
-        accounting_system = "quickbooks"
+        # System extracted from state by service
 
         service = OAuthService()
         callback_dto, context = await service.handle_callback(callback_dto, accounting_system)
@@ -53,7 +54,7 @@ async def callback(
         state_data = service.state_manager.validate_state(state)
         callback_uri = state_data["callback_uri"]
 
-        if callback_dto.status == "success":
+        if callback_dto.status == CallbackStatus.SUCCESS:
             if context:
                 background_tasks.add_task(service.process_initial_sync, context)
             redirect_url = f"{callback_uri}?status=success&integration_id={callback_dto.integration_id}"
