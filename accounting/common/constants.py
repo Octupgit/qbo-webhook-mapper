@@ -44,6 +44,14 @@ class CallbackStatus:
     ERROR = "error"
 
 
+class AccountingEntityType:
+    CUSTOMER = "Customer"
+    ITEM = "Item"
+    INVOICE = "Invoice"
+    PAYMENT = "Payment"
+    ATTACHABLE = "Attachable"
+
+
 
 # ============================================================================
 # HTTP & API
@@ -198,3 +206,5 @@ class ColumnSize:
     STATUS = 50
     ACCOUNTING_CLIENT_ID = 255
     DISPLAY_NAME = 255
+    ENTITY_TYPE = 50
+    ENTITY_ID = 255

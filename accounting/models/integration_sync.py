@@ -4,7 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from accounting.common.constants import SyncStatus
+from accounting.common.constants import AccountingEntityType, SyncStatus
+from accounting.db.tables import IntegrationEntityRefDBModel
 from accounting.models.base import DtoModel
 
 
@@ -39,8 +40,21 @@ class InitialSyncResult(DtoModel):
     def from_db_row(cls, *args, **kwargs):
         raise NotImplementedError("InitialSyncResult is not stored in DB")
 
-    def to_db_rows(self, *args, **kwargs):
-        raise NotImplementedError("InitialSyncResult is not persisted to DB")
+    def to_db_rows(self, *args, **kwargs) -> list[IntegrationEntityRefDBModel]:
+
+        entity_refs = []
+        for client in self.accounting_clients:
+            entity_refs.append(
+                IntegrationEntityRefDBModel(
+                    integration_id=self.integration_id,
+                    accounting_entity_type=AccountingEntityType.CUSTOMER,
+                    accounting_entity_id=client.accounting_client_id,
+                    display_name=client.display_name,
+                    is_active=client.is_active,
+                )
+            )
+        return entity_refs
+
 
     @classmethod
     def from_request(cls, *args, **kwargs):

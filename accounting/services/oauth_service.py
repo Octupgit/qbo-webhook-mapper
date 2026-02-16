@@ -6,6 +6,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import HttpUrl
 
 from accounting.common.constants import (
+    AccountingEntityType,
     AccountingSystem,
     APIPath,
     CallbackStatus,
@@ -15,7 +16,8 @@ from accounting.common.constants import (
 from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 from accounting.db import IntegrationDataStore
-from accounting.db.tables import AccountingIntegrationDBModel
+from accounting.db.entity_ref_datastore import IntegrationEntityRefDataStore
+from accounting.db.tables import AccountingIntegrationDBModel, IntegrationEntityRefDBModel
 from accounting.models.integration_sync import InitialSyncResult
 from accounting.models.oauth import (
     AccountingIntegrationDTO,
@@ -33,6 +35,7 @@ class OAuthService:
         self.state_manager = OAuthStateManager()
         self.token_encryption = TokenEncryption()
         self.datastore = IntegrationDataStore()
+        self.entity_ref_datastore = IntegrationEntityRefDataStore()
         self._log = setup_logger()
 
         self.strategies = {
@@ -123,6 +126,10 @@ class OAuthService:
                 f"Initial sync completed: id={integration_dto.id}, "
                 f"partner={integration_dto.partner_id}, status={sync_result.status}"
             )
+
+            entity_refs = sync_result.to_db_rows()
+            await self.entity_ref_datastore.upsert_entity_refs(entity_refs)
+            self._log.info(f"Stored {len(entity_refs)} customer refs for integration {integration_dto.id}")
 
             await self._post_integration_completed(sync_result)
 
