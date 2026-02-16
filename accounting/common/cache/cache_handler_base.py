@@ -43,19 +43,3 @@ class CacheHandlerBase:
             self._log.error(f"Error in getting data from cache for key: {key} - {e}")
             return None
 
-    def set(self, key: str, value: Any, expire_time: int = TEN_MINUTES) -> bool:
-        self._log.debug(f"Setting data in cache for key: {key}")
-        try:
-            json_value = json.dumps(value)
-            return self._redis.set(key, json_value, ex=expire_time)
-        except Exception as e:
-            self._log.error(f"Error setting data in cache for key: {key} - {e}")
-            return False
-
-    def delete(self, key: str) -> int:
-        self._log.debug(f"Deleting data from cache for key: {key}")
-        try:
-            return self._redis.delete(key)
-        except Exception as e:
-            self._log.error(f"Error deleting data from cache for key: {key} - {e}")
-            return 0

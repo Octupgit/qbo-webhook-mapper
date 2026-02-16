@@ -24,11 +24,6 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
             environment=self.environment,
         )
 
-        if self.environment == "production":
-            self.api_base_url = "https://quickbooks.api.intuit.com"
-        else:
-            self.api_base_url = "https://sandbox-quickbooks.api.intuit.com"
-
     def get_authorization_url(self, state: str) -> str:
         return self.auth_client.get_authorization_url([Scopes.ACCOUNTING], state_token=state)
 
