@@ -22,9 +22,10 @@ from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 from accounting.db import IntegrationDataStore
 from accounting.models.integration_sync import AccountingClientData, InitialSyncResult
-from accounting.models.oauth import SystemInfo
+from accounting.models.oauth import AuthenticateDTO, SystemInfo
 from accounting.services.token_encryption import TokenEncryption
 from accounting.strategies.base_strategy import BaseAccountingStrategy
+from accounting.services.oauth_state_manager import OAuthStateManager
 
 
 class QuickBooksAuthStrategy(BaseAccountingStrategy):
@@ -37,6 +38,7 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
         self._log = setup_logger()
         self.datastore = IntegrationDataStore()
         self.token_encryption = TokenEncryption()
+        self.state_manager = OAuthStateManager()
 
         self.auth_client = AuthClient(
             client_id=self.client_id,
@@ -44,6 +46,7 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
             redirect_uri=self.redirect_uri,
             environment=self.environment,
         )
+
 
     @property
     def system_id(self) -> str:
@@ -61,7 +64,13 @@ class QuickBooksAuthStrategy(BaseAccountingStrategy):
             enabled=True
         )
 
-    def get_authorization_url(self, state: str) -> str:
+    def get_authorization_url(self, auth_dto: AuthenticateDTO) -> str:
+        partner_id = auth_dto.partner_id
+        state = self.state_manager.generate_state(
+            partner_id=partner_id,
+            accounting_system=auth_dto.accounting_system,
+            callback_uri=str(auth_dto.callback_uri)
+        )
         return self.auth_client.get_authorization_url([Scopes.ACCOUNTING], state_token=state)
 
     async def handle_oauth_callback(

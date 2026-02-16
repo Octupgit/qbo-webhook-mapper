@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
-from uuid import UUID
 
-from accounting.models.integration_sync import InitialSyncResult
-from accounting.models.oauth import SystemInfo
+from accounting.models.oauth import AuthenticateDTO, CallbackDTO, SystemInfo
 
 
 class BaseAccountingStrategy(ABC):
@@ -33,7 +31,7 @@ class BaseAccountingStrategy(ABC):
         pass
 
     @abstractmethod
-    def get_authorization_url(self, state: str) -> str:
+    def get_authorization_url(self, auth_dto: AuthenticateDTO) -> str:
         """
         Generate OAuth authorization URL.
         """
@@ -42,42 +40,16 @@ class BaseAccountingStrategy(ABC):
     @abstractmethod
     async def handle_oauth_callback(
         self,
-        code: str,
-        realm_id: str | None,
-        integration_id: UUID,
-        partner_id: int,
-    ) -> InitialSyncResult:
+        callback_dto: CallbackDTO,
+    ) -> CallbackDTO:
         """
         Handle complete OAuth callback flow.
-
-        This is the SINGLE entry point for OAuth callback processing.
-        Encapsulates ALL system-specific logic:
-        - Exchange code for tokens (if applicable)
-        - Fetch company info
-        - Fetch and parse customer data
-        - Store tokens internally or return them
-        - Return standardized InitialSyncResult
-
-        Called by: OAuthService.handle_callback()
-
-        Returns:
-            InitialSyncResult with all sync data, errors, and status
         """
         pass
 
     @abstractmethod
-    async def refresh_tokens(self, integration_id: UUID) -> None:
+    async def refresh_tokens(self, integration_id: str) -> None:
         """
         Refresh access tokens for integration.
-
-        Implementation handles:
-        - Retrieving current refresh token from DB
-        - Calling system's token refresh API
-        - Updating tokens in DB
-
-        Called by: Token refresh service/cron
-
-        Args:
-            integration_id: Integration to refresh tokens for
         """
         pass

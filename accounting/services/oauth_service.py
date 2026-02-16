@@ -13,6 +13,7 @@ from accounting.common.constants import (
 from accounting.common.logging.json_logger import setup_logger
 from accounting.config import settings
 from accounting.db import IntegrationDataStore
+from accounting.db.tables import AccountingIntegrationDBModel
 from accounting.models.integration_sync import InitialSyncResult
 from accounting.models.oauth import (
     AuthenticateDTO,
@@ -39,25 +40,19 @@ class OAuthService:
         systems = [strategy.get_system_info() for strategy in self.strategies.values()]
         return SystemsDTO(systems=systems)
 
+
     async def initiate_oauth(self, auth_dto: AuthenticateDTO) -> AuthenticateDTO:
         strategy = self.strategies.get(auth_dto.accounting_system)
         if not strategy:
             raise ValueError(ErrorMessage.UNSUPPORTED_SYSTEM.format(system=auth_dto.accounting_system))
 
-        partner_id = auth_dto.partner_id
-        state = self.state_manager.generate_state(
-            partner_id=partner_id,
-            accounting_system=auth_dto.accounting_system,
-            callback_uri=str(auth_dto.callback_uri)
-        )
-
-        auth_url = strategy.get_authorization_url(state)
+        auth_url = strategy.get_authorization_url(auth_dto)
         auth_dto.authorization_url = cast(HttpUrl, auth_url)
 
-        self._log.info(f"OAuth initiated: partner_id={partner_id}, system={auth_dto.accounting_system}")
+        self._log.info(f"OAuth initiated: partner_id={auth_dto.partner_id}, system={auth_dto.accounting_system}")
         return auth_dto
 
-    async def handle_callback(self, callback_dto: CallbackDTO) -> tuple[CallbackDTO, InitialSyncResult | None]:
+    async def handle_callback(self, callback_dto: CallbackDTO) -> CallbackDTO:
         try:
             state_data = self.state_manager.validate_state(callback_dto.state)
             partner_id = state_data["partner_id"]
@@ -70,12 +65,18 @@ class OAuthService:
             if not callback_dto.realmId:
                 raise ValueError(ErrorMessage.MISSING_REALM_ID)
 
-            integration_id = await self.datastore.create_integration(
+            connection_details = {
+                "realm_id": callback_dto.realmId,
+                "company_name": strategy.system_name,
+            }
+            integration = AccountingIntegrationDBModel(
                 partner_id=partner_id,
                 accounting_system=accounting_system,
                 integration_name=strategy.system_name,
                 connection_details=connection_details,
             )
+            integration_ids = await self.datastore.upsert_integrations([integration])
+            integration_id = integration_ids[0]
 
             sync_result = await strategy.handle_oauth_callback(
                 code=callback_dto.code,
@@ -92,18 +93,13 @@ class OAuthService:
             callback_dto.status = CallbackStatus.SUCCESS
             callback_dto.integration_id = integration_id
 
-            return callback_dto, sync_result
+            return callback_dto
 
-        except ValueError as e:
-            self._log.error(f"Callback validation error: {str(e)}")
-            callback_dto.status = CallbackStatus.ERROR
-            callback_dto.error_reason = str(e)
-            return callback_dto, None
         except Exception as e:
-            self._log.exception(f"Callback processing error: {str(e)}")
+            self._log.error(f"Callback processing error: {str(e)}")
             callback_dto.status = CallbackStatus.ERROR
             callback_dto.error_reason = ErrorMessage.INTERNAL_ERROR
-            return callback_dto, None
+            return callback_dto
 
     async def post_integration_completed(self, sync_result: InitialSyncResult) -> None:
         if not settings.OCTUP_EXTERNAL_BASE_URL:

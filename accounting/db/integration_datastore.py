@@ -1,12 +1,14 @@
+import uuid
 from datetime import datetime
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select
+from sqlalchemy.engine import CursorResult
 
 from accounting.common.logging.json_logger import setup_logger
 from accounting.db.base_engine import BaseSQLEngine
-from accounting.db.tables import AccountingIntegration
+from accounting.db.tables import AccountingIntegrationDBModel
 
 
 class IntegrationDataStore(BaseSQLEngine):
@@ -14,63 +16,53 @@ class IntegrationDataStore(BaseSQLEngine):
         super().__init__()
         self._log = setup_logger()
 
-    async def create_integration(
-        self,
-        partner_id: int,
-        accounting_system: str,
-        integration_name: str,
-        connection_details: dict,
-    ) -> UUID:
+    async def upsert_integrations(self, integrations: list[AccountingIntegrationDBModel]) -> None:
         try:
-            async with self.sessionmaker() as session:
-                integration = AccountingIntegration(
-                    partner_id=partner_id,
-                    accounting_system=accounting_system,
-                    integration_name=integration_name,
-                    connection_details=connection_details,
-                )
-                session.add(integration)
-                await session.flush()
-                integration_id = UUID(str(integration.id))
-                await session.commit()
-                return integration_id
+            res = await self.upsert_lines(
+                [self._model_to_dict(integration) for integration in integrations],
+                AccountingIntegrationDBModel,
+                excluded_columns={
+                    AccountingIntegrationDBModel.created_at.name,
+                    AccountingIntegrationDBModel.updated_at.name,
+                },
+            )
+            return res.inserted_primary_key_rows
         except Exception as e:
-            self._log.error(f"Failed to create integration for partner_id={partner_id}: {e}")
+            self._log.error(f"Failed to upsert integrations: {e}")
             raise
 
-    async def get_integration_by_id(self, integration_id: UUID) -> AccountingIntegration | None:
+    async def get_integration_by_id(self, integration_id: UUID) -> AccountingIntegrationDBModel | None:
         try:
-            query = select(AccountingIntegration).where(AccountingIntegration.id == str(integration_id))
+            query = select(AccountingIntegrationDBModel).where(AccountingIntegrationDBModel.id == str(integration_id))
             return await self.execute_scalar(query)
         except Exception as e:
             self._log.error(f"Failed to get integration by id={integration_id}: {e}")
             raise
 
-    async def get_active_integrations_by_partner(self, partner_id: int) -> list[AccountingIntegration]:
+    async def get_active_integrations_by_partner(self, partner_id: int) -> list[AccountingIntegrationDBModel]:
         try:
-            query = select(AccountingIntegration).where(
-                AccountingIntegration.partner_id == partner_id, AccountingIntegration.is_active
+            query = select(AccountingIntegrationDBModel).where(
+                AccountingIntegrationDBModel.partner_id == partner_id, AccountingIntegrationDBModel.is_active
             )
             results = await self.execute_query_fetch_all(query, to_dict=False)
-            return cast(list[AccountingIntegration], results)
+            return cast(list[AccountingIntegrationDBModel], results)
         except Exception as e:
             self._log.error(f"Failed to get active integrations for partner_id={partner_id}: {e}")
             raise
 
-    async def update_connection_details(self, integration_id: UUID, connection_details: dict) -> None:
+    async def update_connection_details(self, integration_id: str, connection_details: dict) -> int | None:
         try:
-            integration = await self.get_integration_by_id(integration_id)
-            if not integration:
-                raise ValueError(f"Integration {integration_id} not found")
-
-            existing_details = integration.connection_details if isinstance(integration.connection_details, dict) else {}
-            updated_details = {**existing_details, **connection_details}
-            stmt = (
-                update(AccountingIntegration)
-                .where(AccountingIntegration.id == str(integration_id))
-                .values(connection_details=updated_details, updated_at=datetime.utcnow())
+            res = await self.update_row_by_id(
+                integration_id,
+                AccountingIntegrationDBModel,
+                id_column_name="id",
+                update_fields={"connection_details": connection_details},
             )
-            await self.execute_query(stmt)
+            if res is not None and res.rowcount:
+                self._log.info(f"Updated {res.rowcount} integration row(s) with id {integration_id}")
+                return res.rowcount
+            return None
         except Exception as e:
-            self._log.error(f"Failed to update connection details for integration_id={integration_id}: {e}")
+            self._log.error(f"Error updating connection details for integration_id={integration_id}: {e}")
             raise
+        

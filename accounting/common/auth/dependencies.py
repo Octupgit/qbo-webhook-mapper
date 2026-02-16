@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Annotated
 
-from accounting.common.auth.models import AuthenticationContext
+from accounting.models.oauth import AuthenticationContext
 from accounting.common.cache.user_session_cache import InvalidSessionError, UserSessionCache, UserTokenNotFoundException
 from accounting.common.logging.json_logger import setup_logger
 from fastapi import Depends, HTTPException, Request

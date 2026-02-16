@@ -9,26 +9,18 @@ All hardcoded values should be defined here for maintainability and extensibilit
 
 class AccountingSystem:
     QUICKBOOKS = "quickbooks"
-    XERO = "xero"  # Future support
-    NETSUITE = "netsuite"  # Future support
 
 
 class AccountingSystemName:
     QUICKBOOKS = "QuickBooks Online"
-    QUICKBOOKS_SHORT = "QuickBooks"
-    XERO = "Xero"  # Future support
-    NETSUITE = "NetSuite"  # Future support
 
 
 class AccountingSystemText:
     QUICKBOOKS = "Connect to QuickBooks"
-    XERO = "Connect to Xero"  # Future support
 
 
 class DefaultCompanyName:
     QUICKBOOKS = "QuickBooks Account"
-    XERO = "Xero Account"  # Future support
-    GENERIC = "Accounting Account"
 
 
 # ============================================================================
@@ -38,8 +30,6 @@ class DefaultCompanyName:
 class IntegrationStatus:
     ACTIVE = "active"
     INACTIVE = "inactive"
-    PENDING = "pending"
-    SUSPENDED = "suspended"
 
 
 class SyncStatus:
@@ -53,12 +43,6 @@ class CallbackStatus:
     SUCCESS = "success"
     ERROR = "error"
 
-
-class InvoiceSyncStatus:
-    PENDING = "pending"
-    SYNCING = "syncing"
-    SYNCED = "synced"
-    FAILED = "failed"
 
 
 # ============================================================================
@@ -92,8 +76,6 @@ class APIPath:
 
 class RedisKeyPrefix:
     SESSION = "accounting"
-    TOKEN = "acct_token"
-    INTEGRATION = "integration"
 
 
 # ============================================================================

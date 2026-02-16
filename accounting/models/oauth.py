@@ -1,10 +1,11 @@
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
 
 from accounting.common.constants import ValidationPattern
-from accounting.db.tables import AccountingIntegration
+from accounting.db.tables import AccountingIntegrationDBModel
 from accounting.models.base import DtoModel
 
 
@@ -62,12 +63,16 @@ class AuthenticateDTO(DtoModel):
 
     @classmethod
     def from_request(cls, accounting_system: str, callback_uri: str, partner_id: int) -> "AuthenticateDTO":
-        return cls(accounting_system=accounting_system, callback_uri=callback_uri, partner_id=partner_id)
+        return cls(
+            accounting_system=accounting_system,
+            callback_uri=cast(HttpUrl, callback_uri),
+            partner_id=partner_id,
+        )
 
-    def to_response(self, *args, **kwargs) -> dict:
+    def to_response(self, *args, **kwargs) -> str:
         if not self.authorization_url:
             raise ValueError("Authorization URL not set")
-        return {"authorization_url": str(self.authorization_url)}
+        return str(self.authorization_url)
 
 
 class CallbackDTO(DtoModel):
@@ -119,11 +124,11 @@ class AccountingIntegrationDTO(DtoModel):
     updated_at: datetime | None = None
 
     @classmethod
-    def from_db_rows(cls, rows: list[AccountingIntegration]) -> list["AccountingIntegrationDTO"]:
+    def from_db_rows(cls, rows: list[AccountingIntegrationDBModel]) -> list["AccountingIntegrationDTO"]:
         return [cls.from_db_row(row) for row in rows]
 
     @classmethod
-    def from_db_row(cls, row: AccountingIntegration) -> "AccountingIntegrationDTO":
+    def from_db_row(cls, row: AccountingIntegrationDBModel) -> "AccountingIntegrationDTO":
         return cls.model_validate(row)
 
     def to_db_rows(self, *args, **kwargs) -> list[dict]:
@@ -159,3 +164,12 @@ class AccountingIntegrationDTO(DtoModel):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+class AuthenticationContext(BaseModel):
+    partner_id: int
+    user_id: int | None = None
+    user_email: str | None = None
+    is_authenticated: bool = True
+
+    class Config:
+        from_attributes = True
